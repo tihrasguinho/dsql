@@ -6,6 +6,12 @@
 
 ##### - Example:
 
+##### First you need to install the dsql globally
+
+```shell
+dart pub global activate dsql
+```
+
 ##### In the root of the project, create a folder called "migrations" and place your migrations inside it, each with its current version number (similar to Spring Boot).
 
  - root/migrations/V1__initial.sql

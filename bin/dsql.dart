@@ -38,27 +38,6 @@ Options:
   -o, --output <path>   Set the output path
 
 Example:
-  in root of your project create a directory called migrations and put a sql file inside it
-  you can call whatever you want, but I recomended to use something like this V1_name_of_file.sql
-  this way you can easily organize your migrations by versions!
-
-  Inside the sql file, you need to put an entity name before table script
-  Example:
-    -- Entity => UserEntity
-    CREATE TABLE users (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255) NOT NULL UNIQUE,
-      password VARCHAR(255) NOT NULL
-    );
-  
-  This way the generator will use the entity name to generate the classes in dart!
-
-  In the next step, you need to run the generator with the --generate or -g flag
-  Example:
-    dsql --generate
-
-  And if you want to save the generated code in other path, use the --output or -o flag
   Example:
     dsql --generate --output /path/to/output  
 ''');
@@ -66,7 +45,7 @@ Example:
     }
 
     if (version) {
-      stdout.writeln('DSQL version: 0.0.1 at 2023-09-24 19:15');
+      stdout.writeln('DSQL version: 0.0.3 at 2023-09-24 19:15');
       exit(0);
     }
 
@@ -207,15 +186,13 @@ String snakeToPascalCase(String input) {
 (String content, Repository repository) tableToEntity(RegExpMatch match) {
   final entityName = match.group(1) ?? '';
   final tableName = match.group(2) ?? '';
-  final lines = match.group(3)?.split('\n') ?? [];
+  final lines = match.group(3)?.trim().split('\n') ?? [];
 
   assert(entityName.isNotEmpty && tableName.isNotEmpty && lines.isNotEmpty, 'Invalid table script, please check your code!');
 
   final metadatas = <Metadata>[];
 
   for (final line in lines) {
-    if (line.isEmpty) continue;
-
     final [name, type, ...parts] = line.trim().split(' ');
 
     final partsJoined = parts.join(' ').toUpperCase();

@@ -6,3 +6,7 @@
 
 - Version message bug correction
 - Example on --help added
+
+## 0.0.3
+
+- Bug fidex on create table regex
