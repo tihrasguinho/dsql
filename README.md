@@ -1,16 +1,16 @@
 ### DSQL ORM
 
-#### An experimental Dart ORM or something like that
+#### An Experimental Dart ORM or Something Similar
 
-##### Initially the idea is to read a .sql file as in a spring migration for example, and generate the classes to be used in dart!
+##### Initially, the idea is to read a .sql file, as in Spring Migration, for example, and generate the classes to be used in Dart!
 
 ##### - Example:
 
-##### In the root of project create a folder called migrations and put inside it your migrations with its current version number. (Exactly like in Spring Boot)
+##### In the root of the project, create a folder called "migrations" and place your migrations inside it, each with its current version number (similar to Spring Boot).
 
  - root/migrations/V1__initial.sql
 
-##### Inside the sql script for table creations, you need to give the "EntityName" that will used to generate dart classes based on it.
+##### Inside the SQL script for table creations, you need to provide the "EntityName" that will be used to generate Dart classes based on it.
 
 ```sql
 -- Entity => UserEntity 
@@ -25,15 +25,16 @@ CREATE TABLE IF NOT EXISTS tb_users (
 );
 ```
 
-##### After that, you will need to run the command of dsql for generate all classes for manipulate on PostgreSQL
+##### After that, you will need to run the "dsql" command to generate all classes for manipulation on PostgreSQL.
 
 ```shell
 dsql --generate
 ```
 
-##### It will create a dsql.dart file inside lib/generated/dsql.dart or if you want to generate in another directory you can use --output  or -o to pass another path!
+##### It will create a "dsql.dart" file inside the "lib/generated" directory, or if you want to generate it in another directory, you can use "--output" or "-o" to specify another path.
 
-##### After that, you can create a instance of DSQL class passing all the database configuration and then calling the initialize method!
+
+##### Afterward, you can create an instance of the DSQL class, providing all the database configurations, and then call the "initialize" method.
 
 ```dart
 void main() async {
@@ -43,9 +44,9 @@ void main() async {
 }
 ```
 
-##### All the given entities will generate a repository inside the DSQL class and you can easily call by its name
+##### All the provided entities will generate a repository inside the DSQL class, and you can easily access them by their name.
 
-##### - Example based on its sql:
+##### - Example based on this SQL:
 
 ```dart
 void main() async {
@@ -64,3 +65,12 @@ void main() async {
   await dsql.user.delete('some_user_id');
 }
 ```
+
+##### Next steps:
+
+##### - Add more SQL types (currently only VARCHAR, TEXT, UUID, BOOLEAN, INTEGER, DOUBLE, TIMESTAMP are supported)
+##### - Add relationship between entities
+##### - Add others drivers like MySQL, MSSQL, SQLite!
+
+##### Twitter: @tihraguinho
+
