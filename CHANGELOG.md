@@ -27,3 +27,7 @@
 
 - Fixing bug to create table on start up!
 - Fix version number on dsql -v
+
+## 0.0.6
+
+- Fixing bug on update method!

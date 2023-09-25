@@ -500,7 +500,7 @@ String snakeToPascalCase(String input) {
       assert(params.isNotEmpty, 'At least one parameter must be provided!');
 
       final query = await conn.query(
-        'UPDATE $tableName SET \${params.keys.map((e) => '\$e: @\$e').join(', ')} RETURNING *;',
+        'UPDATE $tableName SET \${params.keys.map((e) => '\$e = @\$e').join(', ')} RETURNING *;',
         substitutionValues: params,
       );
 
@@ -548,7 +548,7 @@ String sqlToRepository() {
 }
 
 Future<void> getVersion() async {
-  stdout.writeln('DSQL version: 0.0.5+2 2023-09-24 23:01');
+  stdout.writeln('DSQL version: 0.0.6 2023-09-24 23:01');
   exit(0);
 }
 
