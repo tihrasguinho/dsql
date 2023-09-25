@@ -12,6 +12,13 @@
 dart pub global activate dsql
 ```
 
+##### Then add the dsql package to your pubspec.yaml
+
+```yaml
+dependencies:
+  dsql: ^0.0.4
+```
+
 ##### In the root of the project, create a folder called "migrations" and place your migrations inside it, each with its current version number (similar to Spring Boot).
 
  - root/migrations/V1__initial.sql
