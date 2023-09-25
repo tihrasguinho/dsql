@@ -90,6 +90,8 @@ Future<void> generateFile(String path) async {
 
   final buffer = StringBuffer();
 
+  buffer.writeln('import \'dart:io\';');
+
   buffer.writeln('import \'dart:convert\';');
 
   buffer.writeln('import \'package:dsql/dsql.dart\';');
@@ -159,10 +161,10 @@ Future<void> generateFile(String path) async {
 
       final files = migrations.listSync(recursive: true).where((file) => file.statSync().type == FileSystemEntityType.file);
 
-      final versions = files.where((file) => p.basename(file.path).startsWith(RegExp(r'^V[d]+__(.*).sql\$')));
+      final versions = files.where((file) => basename(file.path).startsWith(RegExp(r'^V[d]+__(.*).sql\$')));
 
       for (final version in versions) {
-        final content = await version.readAsString();
+        final content = await File(version.path).readAsString();
 
         await _conn.execute(content);
       }

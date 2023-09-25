@@ -18,3 +18,7 @@
 ## 0.0.5
 
 - Bug fix on update and delete methods!
+
+## 0.0.5+1
+
+- Other bug fix!
