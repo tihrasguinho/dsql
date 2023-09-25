@@ -22,3 +22,8 @@
 ## 0.0.5+1
 
 - Other bug fix!
+
+## 0.0.5+2
+
+- Fixing bug to create table on start up!
+- Fix version number on dsql -v

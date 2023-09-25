@@ -161,7 +161,7 @@ Future<void> generateFile(String path) async {
 
       final files = migrations.listSync(recursive: true).where((file) => file.statSync().type == FileSystemEntityType.file);
 
-      final versions = files.where((file) => basename(file.path).startsWith(RegExp(r'^V[d]+__(.*).sql\$')));
+      final versions = files.where((file) => basename(file.path).startsWith(RegExp(r'^V[\\d]+__(.*).sql\$')));
 
       for (final version in versions) {
         final content = await File(version.path).readAsString();
@@ -548,10 +548,7 @@ String sqlToRepository() {
 }
 
 Future<void> getVersion() async {
-  final root = Directory.current;
-  final pubspec = await File(p.join(root.path, 'pubspec.yaml')).readAsLines();
-  final version = pubspec.firstWhere((e) => e.startsWith('version:')).split(' ').last.trim();
-  stdout.writeln('DSQL version: $version');
+  stdout.writeln('DSQL version: 0.0.5+2 2023-09-24 23:01');
   exit(0);
 }
 
