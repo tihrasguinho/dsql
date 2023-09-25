@@ -45,8 +45,7 @@ Example:
     }
 
     if (version) {
-      stdout.writeln('DSQL version: 0.0.3 at 2023-09-24 19:15');
-      exit(0);
+      return getVersion();
     }
 
     if (!generate) {
@@ -93,7 +92,7 @@ Future<void> generateFile(String path) async {
 
   buffer.writeln('import \'dart:convert\';');
 
-  buffer.writeln('import \'package:postgres/postgres.dart\';');
+  buffer.writeln('import \'package:dsql/dsql.dart\';');
 
   buffer.writeln();
 
@@ -432,17 +431,17 @@ String snakeToPascalCase(String input) {
 
     buffer.write('''
     try {
-      final select = await conn.query(
+      final query = await conn.query(
         'SELECT * FROM $tableName WHERE ${pk.name.toSnakeCase()} = @${pk.name}',
         substitutionValues: {
           '${pk.name}': ${pk.name},
         },
       );
 
-      if (select.isEmpty) {
+      if (query.isEmpty) {
         return null;
       } else {
-        return $entityName.fromRow(select.first);
+        return $entityName.fromRow(query.first);
       }
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
@@ -451,6 +450,90 @@ String snakeToPascalCase(String input) {
     }
 ''');
   }
+
+  buffer.writeln('  }');
+
+  buffer.writeln();
+
+  final updatableMetadatas = metadatas.where((e) => !e.primaryKey).toList();
+
+  buffer.writeln('  Future<$entityName> update({');
+
+  for (var i = 0; i < updatableMetadatas.length; i++) {
+    final name = updatableMetadatas[i].name;
+    final type = updatableMetadatas[i].type;
+
+    buffer.writeln('    $type? $name,');
+  }
+
+  buffer.writeln('  }) async {');
+
+  buffer.writeln('''
+    try {
+      final params = <String, dynamic>{
+        ${updatableMetadatas.map((e) => 'if (${e.name} != null) \'${e.name.toSnakeCase()}\': ${e.name}').join(', ')}
+      };
+
+      assert(params.isNotEmpty, 'At least one parameter must be provided!');
+
+      final query = await conn.query(
+        'UPDATE $tableName SET \${params.keys.map((e) => '\$e: @\$e').join(', ')} RETURNING *;',
+        substitutionValues: params,
+      );
+
+      return $entityName.fromRow(query.first);
+    } on PostgreSQLException catch (e) {
+      throw Exception(e.message);
+    } on Exception catch (e) {
+      throw Exception(e);
+    }
+''');
+
+  buffer.writeln('  }');
+
+  buffer.writeln();
+
+  buffer.writeln('  Future<$entityName> delete({');
+
+  for (var i = 0; i < metadatas.length; i++) {
+    final name = metadatas[i].name;
+    final type = metadatas[i].type;
+
+    buffer.writeln('    $type? $name,');
+  }
+
+  buffer.writeln('  }) async {');
+
+  buffer.writeln('    final params = <String, dynamic>{');
+
+  for (var i = 0; i < metadatas.length; i++) {
+    final name = metadatas[i].name;
+
+    buffer.writeln('      \'${name.toSnakeCase()}\': $name,');
+  }
+
+  buffer.writeln('    };');
+
+  buffer.writeln();
+
+  buffer.writeln('    assert(params.isNotEmpty, \'At least one parameter must be provided!\');');
+
+  buffer.writeln();
+
+  buffer.writeln('''
+    try {
+      final query = await conn.query(
+        'DELETE FROM $tableName WHERE \${params.keys.map((e) => '\$e: @\$e').join(' AND ')} RETURNING *;',
+        substitutionValues: params,
+      );
+
+      return $entityName.fromRow(query.first);
+    } on PostgreSQLException catch (e) {
+      throw Exception(e.message);
+    } on Exception catch (e) {
+      throw Exception(e);
+    }
+  ''');
 
   buffer.writeln('  }');
 
@@ -463,6 +546,14 @@ String sqlToRepository() {
   final buffer = StringBuffer();
 
   return buffer.toString();
+}
+
+Future<void> getVersion() async {
+  final root = Directory.current;
+  final pubspec = await File(p.join(root.path, 'pubspec.yaml')).readAsLines();
+  final version = pubspec.firstWhere((e) => e.startsWith('version:')).split(' ').last.trim();
+  stdout.writeln('DSQL version: $version');
+  exit(0);
 }
 
 String toDartType(String type, [bool nullable = false]) => switch (type) {

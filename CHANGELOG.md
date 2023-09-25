@@ -10,3 +10,7 @@
 ## 0.0.3
 
 - Bug fidex on create table regex
+
+## 0.0.4
+
+- New methods added for entities [update, delete]
