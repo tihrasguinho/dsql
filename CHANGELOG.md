@@ -31,3 +31,7 @@
 ## 0.0.6
 
 - Fixing bug on update method!
+
+## 0.0.7
+
+- Improvement on CLI commands!

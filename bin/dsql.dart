@@ -26,35 +26,15 @@ FutureOr<void> main(List<String> args) async {
     final help = result['help'] as bool? ?? false;
 
     if (help) {
-      stdout.writeln('''
-DSQL CLI - Dart SQL Schema Generator
-
-Usage: dsql [options]
-
-Options:
-  -h, --help            Show this help message
-  -g, --generate        Generate the Dart code for the SQL schema!
-  -v, --version         Print the version
-  -o, --output <path>   Set the output path
-
-Example:
-  Example:
-    dsql --generate --output /path/to/output  
-''');
-      exit(0);
-    }
-
-    if (version) {
+      return showHelp();
+    } else if (version) {
       return getVersion();
-    }
-
-    if (!generate) {
-      stdout.writeln('For generating the SQL schema, use the --generate flag!');
+    } else if (generate) {
+      await generateFile(output);
       exit(0);
+    } else {
+      return showHelp();
     }
-
-    await generateFile(output);
-    exit(0);
   } on Exception catch (e) {
     stdout.writeln('Error: $e');
   }
@@ -71,6 +51,11 @@ final tableScriptRegex = RegExp(
 
 Future<void> generateFile(String path) async {
   final root = Directory.current;
+
+  if (root.listSync().any((file) => file.statSync().type == FileSystemEntityType.file && p.basename(file.path) == 'pubspec.yaml')) {
+    stdout.writeln('Please run this command from the root of the project!');
+    exit(0);
+  }
 
   final migrations = Directory(p.join(root.path, 'migrations'));
 
@@ -547,8 +532,27 @@ String sqlToRepository() {
   return buffer.toString();
 }
 
-Future<void> getVersion() async {
-  stdout.writeln('DSQL version: 0.0.6 2023-09-24 23:01');
+void getVersion() {
+  stdout.writeln('DSQL version: 0.0.7 2023-09-25 17:51');
+  exit(0);
+}
+
+void showHelp() {
+  stdout.writeln('''
+DSQL CLI - Dart SQL Schema Generator
+
+Usage: dsql [options]
+
+Options:
+  -h, --help            Show this help message
+  -g, --generate        Generate the Dart code for the SQL schema!
+  -v, --version         Print the version
+  -o, --output <path>   Set the output path
+
+Example:
+  Example:
+    dsql --generate --output /path/to/output  
+''');
   exit(0);
 }
 

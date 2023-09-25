@@ -1,6 +1,6 @@
 name: dsql
 description: Dart SQL library for generating .dart files from .sql files
-version: 0.0.6
+version: 0.0.7
 homepage: https://tihrasguinho.dev
 
 executables: 
