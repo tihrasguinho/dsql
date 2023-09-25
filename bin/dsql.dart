@@ -152,6 +152,24 @@ Future<void> generateFile(String path) async {
 
   buffer.writeln('      await _conn.open();');
 
+  buffer.writeln('''
+      final root = Directory.current;
+
+      final migrations = Directory(join(root.path, 'migrations'));
+
+      final files = migrations.listSync(recursive: true).where((file) => file.statSync().type == FileSystemEntityType.file);
+
+      final versions = files.where((file) => p.basename(file.path).startsWith(RegExp(r'^V[d]+__(.*).sql\$')));
+
+      for (final version in versions) {
+        final content = await version.readAsString();
+
+        await _conn.execute(content);
+      }
+
+      print('DSQL initialized!');
+''');
+
   buffer.writeln('  }');
 
   buffer.writeln('}');
@@ -455,20 +473,23 @@ String snakeToPascalCase(String input) {
 
   buffer.writeln();
 
-  final updatableMetadatas = metadatas.where((e) => !e.primaryKey).toList();
+  if (metadatas.any((e) => e.primaryKey)) {
+    final pk = metadatas.firstWhere((e) => e.primaryKey);
 
-  buffer.writeln('  Future<$entityName> update({');
+    final updatableMetadatas = metadatas.where((e) => !e.primaryKey).toList();
 
-  for (var i = 0; i < updatableMetadatas.length; i++) {
-    final name = updatableMetadatas[i].name;
-    final type = updatableMetadatas[i].type;
+    buffer.writeln('  Future<$entityName> update(${pk.type} ${pk.name}, {');
 
-    buffer.writeln('    $type? $name,');
-  }
+    for (var i = 0; i < updatableMetadatas.length; i++) {
+      final name = updatableMetadatas[i].name;
+      final type = updatableMetadatas[i].type;
 
-  buffer.writeln('  }) async {');
+      buffer.writeln('    $type? $name,');
+    }
 
-  buffer.writeln('''
+    buffer.writeln('  }) async {');
+
+    buffer.writeln('''
     try {
       final params = <String, dynamic>{
         ${updatableMetadatas.map((e) => 'if (${e.name} != null) \'${e.name.toSnakeCase()}\': ${e.name}').join(', ')}
@@ -489,42 +510,17 @@ String snakeToPascalCase(String input) {
     }
 ''');
 
-  buffer.writeln('  }');
+    buffer.writeln('  }');
 
-  buffer.writeln();
+    buffer.writeln('  Future<$entityName> delete(${pk.type} ${pk.name}) async {');
 
-  buffer.writeln('  Future<$entityName> delete({');
-
-  for (var i = 0; i < metadatas.length; i++) {
-    final name = metadatas[i].name;
-    final type = metadatas[i].type;
-
-    buffer.writeln('    $type? $name,');
-  }
-
-  buffer.writeln('  }) async {');
-
-  buffer.writeln('    final params = <String, dynamic>{');
-
-  for (var i = 0; i < metadatas.length; i++) {
-    final name = metadatas[i].name;
-
-    buffer.writeln('      \'${name.toSnakeCase()}\': $name,');
-  }
-
-  buffer.writeln('    };');
-
-  buffer.writeln();
-
-  buffer.writeln('    assert(params.isNotEmpty, \'At least one parameter must be provided!\');');
-
-  buffer.writeln();
-
-  buffer.writeln('''
+    buffer.writeln('''
     try {
       final query = await conn.query(
-        'DELETE FROM $tableName WHERE \${params.keys.map((e) => '\$e: @\$e').join(' AND ')} RETURNING *;',
-        substitutionValues: params,
+        'DELETE FROM $tableName WHERE ${pk.name.toSnakeCase()} = @${pk.name} RETURNING *;',
+        substitutionValues: {
+          '${pk.name}': ${pk.name},
+        },
       );
 
       return $entityName.fromRow(query.first);
@@ -535,7 +531,8 @@ String snakeToPascalCase(String input) {
     }
   ''');
 
-  buffer.writeln('  }');
+    buffer.writeln('  }');
+  }
 
   buffer.writeln('}');
 

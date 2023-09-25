@@ -10,4 +10,6 @@ void main() async {
   await dsql.user.findMany(name: 'name');
 
   await dsql.user.findById(user.id);
+
+  await dsql.user.update();
 }

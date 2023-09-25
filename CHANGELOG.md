@@ -14,3 +14,7 @@
 ## 0.0.4
 
 - New methods added for entities [update, delete]
+
+## 0.0.5
+
+- Bug fix on update and delete methods!

@@ -73,10 +73,9 @@ void main() async {
 
   await dsql.user.findById('some_user_id');
 
-  await dsql.user.update(UserEntity...);
+  await dsql.user.update('some_user_id', name: 'new_name', email: 'new_email');
 
-  await dsql.user.delete('some_user_id');
-}
+  await dsql.user.delete('some_user_id');}
 ```
 
 ##### Next steps:
