@@ -71,3 +71,7 @@
 ## 0.0.8+7
 
 - SQL script order ajusted on findMany method!
+
+## 0.0.8+71
+
+- Another bug fixed on findMany method!
