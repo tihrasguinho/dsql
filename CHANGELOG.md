@@ -49,3 +49,8 @@
 
 - Removed some external packages from implicit exports!
 - Removed date from sdql -v command 
+
+## 0.0.8+3
+
+- Removed an external package to manipulate strings
+- Added some new methods to manipulate strings better

@@ -139,9 +139,7 @@ class DSQLGen {
     for (final tableAndRepository in tablesAndRepositories) {
       final [repositoryName, ...] = tableAndRepository;
 
-      final repositoryNameNormalized = '_${repositoryName[0].toLowerCase()}${repositoryName.substring(1)}';
-
-      buffer.writeln('    $repositoryNameNormalized = $repositoryName(_conn);');
+      buffer.writeln('    _${DSQLUtils.toCamelCase(repositoryName)} = $repositoryName(_conn);');
     }
 
     buffer.writeln('  }');

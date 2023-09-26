@@ -1,7 +1,12 @@
-import 'package:strings/strings.dart' as strings;
 import 'package:path/path.dart' as p;
 
 class DSQLUtils {
+  static final _pascalCaseRegex = RegExp(r'^[A-Z][a-zA-Z\d]*$');
+
+  static final _snakeCaseRegex = RegExp(r'^[a-z\d_]+$');
+
+  static final _camelCaseRegex = RegExp(r'^[a-z][a-zA-Z\d]*$');
+
   const DSQLUtils._();
 
   static String dartTypeToFilter(Type type) => switch (type) {
@@ -13,16 +18,44 @@ class DSQLUtils {
         _ => throw Exception('DSQLUtils: unsupported type $type'),
       };
 
-  static String toSnakeCase(String input) {
-    return strings.Strings.toSnakeCase(input);
+  static String toCamelCase(String value) {
+    if (_pascalCaseRegex.hasMatch(value)) {
+      return '${value[0].toLowerCase()}${value.substring(1)}';
+    } else if (_snakeCaseRegex.hasMatch(value)) {
+      final parts = value.split('_');
+      return '${parts[0][0].toLowerCase()}${parts[0].substring(1)}${parts.skip(1).map((e) => e[0].toUpperCase() + e.substring(1)).join('')}';
+    } else if (_camelCaseRegex.hasMatch(value)) {
+      return value;
+    } else {
+      return value;
+    }
   }
 
-  static String toPascalCase(String input) {
-    return strings.Strings.toCamelCase(input);
+  static String toPascalCase(String value) {
+    if (_pascalCaseRegex.hasMatch(value)) {
+      return value;
+    } else if (_snakeCaseRegex.hasMatch(value)) {
+      final parts = value.split('_');
+      return parts.map((e) => e[0].toUpperCase() + e.substring(1)).join('');
+    } else if (_camelCaseRegex.hasMatch(value)) {
+      return '${value[0].toUpperCase()}${value.substring(1)}';
+    } else {
+      return value;
+    }
   }
 
-  static String toCamelCase(String input) {
-    return strings.Strings.toCamelCase(input, lower: true);
+  static String toSnakeCase(String value) {
+    if (_pascalCaseRegex.hasMatch(value)) {
+      final newValue = value.split('').map((e) => RegExp('[A-Z]').hasMatch(e) ? '_${e.toLowerCase()}' : e).join('');
+      return newValue.startsWith('_') ? newValue.substring(1) : newValue;
+    } else if (_snakeCaseRegex.hasMatch(value)) {
+      return value;
+    } else if (_camelCaseRegex.hasMatch(value)) {
+      final newValue = value.split('').map((e) => RegExp('[A-Z]').hasMatch(e) ? '_${e.toLowerCase()}' : e).join('');
+      return newValue.startsWith('_') ? newValue.substring(1) : newValue;
+    } else {
+      return value;
+    }
   }
 
   static String basename(String path) {
