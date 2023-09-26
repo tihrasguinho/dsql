@@ -40,3 +40,7 @@
 
 - New query filter options in findMany, findOne, update and delete methods!
 - Added StringFilter, IntegerFilter, DoubleFilter, TimestampFilter and BooleanFilter!
+
+## 0.0.8+1
+
+- Version number on dsql -v fixed
