@@ -67,3 +67,7 @@
 ## 0.0.8+6
 
 - Bug fix on findMany method with limit, offset and order by!
+
+## 0.0.8+7
+
+- SQL script order ajusted on findMany method!

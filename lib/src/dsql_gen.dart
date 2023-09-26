@@ -400,7 +400,7 @@ String findManyFunScript(String entityName, String tableName, List<Param> params
     try {
       PostgreSQLResult result;
 
-      final orderByAndLimit = '\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit ' : ''}\${orderBy != null ? 'ORDER BY \${orderBy.param}' : ''}';
+      final orderByOffsetAndLimit = '\${orderBy != null ? 'ORDER BY \${orderBy.param}' : ''}\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit ' : ''}';
 
       final filters = <String, Filter>{
         ${params.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
@@ -408,14 +408,14 @@ String findManyFunScript(String entityName, String tableName, List<Param> params
 
       if (filters.isNotEmpty) {
         result = await conn.query(
-          'SELECT * FROM $tableName WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' OR ')}\${orderByAndLimit.isNotEmpty ? ' \$orderByAndLimit' : ''};',
+          'SELECT * FROM $tableName WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' OR ')}\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
           substitutionValues: {
             ...filters.map((k, v) => MapEntry(k, v.value)),
           },
         );
       } else {
         result = await conn.query(
-          'SELECT * FROM $tableName\${orderByAndLimit.isNotEmpty ? ' \$orderByAndLimit' : ''};',
+          'SELECT * FROM $tableName\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
         );
       }
 
