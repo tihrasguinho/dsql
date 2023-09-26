@@ -58,3 +58,8 @@
 ## 0.0.8+4
 
 - Bug fixed on DSQL generated class!
+
+## 0.0.8+5
+
+- New enum for query filters added
+- Limit, offset and order by in findMany added!

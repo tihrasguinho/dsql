@@ -308,9 +308,7 @@ class DSQLGen {
 
     repositoryBuffer.writeln();
 
-    final requiredParams = params.where((e) => e.required && !e.nullable).toList();
-
-    repositoryBuffer.writeln(createFunScript(entityName, tableName, requiredParams));
+    repositoryBuffer.writeln(createFunScript(entityName, tableName, params));
 
     repositoryBuffer.writeln();
 
@@ -329,6 +327,12 @@ class DSQLGen {
     repositoryBuffer.writeln(deleteFunScript(entityName, tableName, params));
 
     repositoryBuffer.writeln('}');
+
+    repositoryBuffer.writeln();
+
+    repositoryBuffer.writeln(orderByEnum(entityName, tableName, params));
+
+    repositoryBuffer.writeln();
 
     return [repositoryName, repositoryBuffer.toString(), entityName, entityBuffer.toString()];
   }
@@ -353,7 +357,19 @@ class Param {
   Param({required this.name, required this.type, required this.nullable, required this.required, required this.primaryKey});
 }
 
-String createFunScript(String entityName, String tableName, List<Param> requiredParams) {
+String orderByEnum(String entityName, String tableName, List<Param> params) {
+  return '''enum ${entityName.replaceAll('Entity', '')}OrderBy {
+    ${params.map((e) => '${e.name}Asc(\'${e.name.toSnakeCase()} ASC\'),\n${e.name}Desc(\'${e.name.toSnakeCase()} DESC\')').join(', ')};
+
+    final String param;
+
+    const ${entityName.replaceAll('Entity', '')}OrderBy(this.param);
+  }''';
+}
+
+String createFunScript(String entityName, String tableName, List<Param> params) {
+  final requiredParams = params.where((e) => e.required && !e.nullable).toList();
+
   return '''  Future<$entityName> create({
     ${requiredParams.map((e) => 'required ${e.type} ${e.name}').join(', ')},
   }) async {
@@ -377,9 +393,14 @@ String createFunScript(String entityName, String tableName, List<Param> required
 String findManyFunScript(String entityName, String tableName, List<Param> params) {
   return '''  Future<List<$entityName>> findMany({
     ${params.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+    ${entityName.replaceAll('Entity', '')}OrderBy? orderBy,
+    int? limit,
+    int? offset,
   }) async {
     try {
       PostgreSQLResult result;
+
+      final orderByAndLimit = '\${offset != null ? '\$offset ' : ''}\${limit != null ? '\$limit ' : ''}\${orderBy != null ? orderBy.param : ''}';
 
       final filters = <String, Filter>{
         ${params.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
@@ -387,14 +408,14 @@ String findManyFunScript(String entityName, String tableName, List<Param> params
 
       if (filters.isNotEmpty) {
         result = await conn.query(
-          'SELECT * FROM $tableName WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' OR ')};',
+          'SELECT * FROM $tableName WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' OR ')}\${orderByAndLimit.isNotEmpty ? ' \$orderByAndLimit' : ''};',
           substitutionValues: {
             ...filters.map((k, v) => MapEntry(k, v.value)),
           },
         );
       } else {
         result = await conn.query(
-          'SELECT * FROM $tableName;',
+          'SELECT * FROM $tableName\${orderByAndLimit.isNotEmpty ? ' \$orderByAndLimit' : ''};',
         );
       }
 

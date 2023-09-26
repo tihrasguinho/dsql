@@ -28,7 +28,7 @@ FutureOr<void> main(List<String> args) async {
     if (help) {
       return showHelp();
     } else if (version) {
-      return getVersion('0.0.8+4');
+      return getVersion('0.0.8+5');
     } else if (generate) {
       if (!root.listSync().any((file) => file.statSync().type == FileSystemEntityType.file && p.basename(file.path) == 'pubspec.yaml')) {
         stdout.writeln('No pubspec.yaml found on this directory!');
