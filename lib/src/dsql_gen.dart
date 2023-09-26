@@ -54,7 +54,7 @@ class DSQLGen {
 
     await Process.run('dart', ['format', outputDir.path]);
 
-    stdout.writeln('dsql.dart generated successfully in $output!');
+    stdout.writeln('dsql.dart generated successfully${output != null ? 'in $output' : ''}!');
 
     exit(0);
   }
@@ -111,7 +111,7 @@ class DSQLGen {
 
       buffer.writeln();
 
-      buffer.writeln('  $repositoryName get _${DSQLUtils.toCamelCase(repositoryName)} => ${DSQLUtils.toCamelCase(repositoryName.replaceAll('Repository', ''))};');
+      buffer.writeln('  $repositoryName get ${DSQLUtils.toCamelCase(repositoryName.replaceAll('Repository', ''))} => _${DSQLUtils.toCamelCase(repositoryName)};');
     }
 
     buffer.writeln();

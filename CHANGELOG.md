@@ -54,3 +54,7 @@
 
 - Removed an external package to manipulate strings
 - Added some new methods to manipulate strings better
+
+## 0.0.8+4
+
+- Bug fixed on DSQL generated class!
