@@ -6,7 +6,7 @@ export 'src/filters/integer_filter.dart';
 export 'src/filters/double_filter.dart';
 export 'src/filters/boolean_filter.dart';
 export 'src/filters/timestamp_filter.dart';
+
 export 'src/dsql_utils.dart';
 
 export 'package:postgres/postgres.dart';
-export 'package:path/path.dart';

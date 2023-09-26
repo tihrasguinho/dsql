@@ -28,7 +28,7 @@ FutureOr<void> main(List<String> args) async {
     if (help) {
       return showHelp();
     } else if (version) {
-      return getVersion('0.0.8+1');
+      return getVersion('0.0.8+2');
     } else if (generate) {
       if (!root.listSync().any((file) => file.statSync().type == FileSystemEntityType.file && p.basename(file.path) == 'pubspec.yaml')) {
         stdout.writeln('No pubspec.yaml found on this directory!');
@@ -46,7 +46,7 @@ FutureOr<void> main(List<String> args) async {
 }
 
 void getVersion(String version) {
-  stdout.writeln('DSQL version: $version 2023-09-26 08:44');
+  stdout.writeln('DSQL version: $version');
   exit(0);
 }
 

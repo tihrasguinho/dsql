@@ -44,3 +44,8 @@
 ## 0.0.8+1
 
 - Version number on dsql -v fixed
+
+## 0.0.8+2
+
+- Removed some external packages from implicit exports!
+- Removed date from sdql -v command 

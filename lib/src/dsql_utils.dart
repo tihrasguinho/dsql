@@ -1,4 +1,5 @@
-import 'package:strings/strings.dart';
+import 'package:strings/strings.dart' as strings;
+import 'package:path/path.dart' as p;
 
 class DSQLUtils {
   const DSQLUtils._();
@@ -12,29 +13,48 @@ class DSQLUtils {
         _ => throw Exception('DSQLUtils: unsupported type $type'),
       };
 
-  static String keyNameAsSnakeCase(String value) {
-    return value.toSnakeCase();
-  }
-
   static String toSnakeCase(String input) {
-    final snakeCase = input.replaceAllMapped(RegExp(r'([A-Z])'), (match) => '_${match.group(0)!.toLowerCase()}');
-
-    return snakeCase.trim().toLowerCase();
+    return strings.Strings.toSnakeCase(input);
   }
 
   static String toPascalCase(String input) {
-    final words = input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), ' ').trim().split(' ');
-
-    final pascalCase = words.map((word) => word[0].toUpperCase() + word.substring(1)).join('');
-
-    return pascalCase;
+    return strings.Strings.toCamelCase(input);
   }
 
   static String toCamelCase(String input) {
-    final words = input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), ' ').trim().split(' ');
+    return strings.Strings.toCamelCase(input, lower: true);
+  }
 
-    final camelCase = words[0].toLowerCase() + words.sublist(1).map((word) => word[0].toUpperCase() + word.substring(1)).join('');
+  static String basename(String path) {
+    return p.basename(path);
+  }
 
-    return camelCase;
+  static String dirname(String path) {
+    return p.dirname(path);
+  }
+
+  static String extension(String path) {
+    return p.extension(path);
+  }
+
+  static String join(
+    String part1, [
+    String? part2,
+    String? part3,
+    String? part4,
+    String? part5,
+    String? part6,
+    String? part7,
+    String? part8,
+    String? part9,
+    String? part10,
+    String? part11,
+    String? part12,
+    String? part13,
+    String? part14,
+    String? part15,
+    String? part16,
+  ]) {
+    return p.join(part1, part2, part3, part4, part5, part6, part7, part8, part9, part10, part11, part12, part13, part14, part15, part16);
   }
 }

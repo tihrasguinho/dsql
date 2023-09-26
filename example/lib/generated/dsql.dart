@@ -47,15 +47,7 @@ class UserEntity {
       );
 
   static UserEntity fromRow(List row) {
-    final [
-      String id,
-      String name,
-      String email,
-      String password,
-      String? image,
-      DateTime createdAt,
-      bool enabled
-    ] = row;
+    final [String id, String name, String email, String password, String? image, DateTime createdAt, bool enabled] = row;
 
     return UserEntity(
       id: id,
@@ -69,26 +61,13 @@ class UserEntity {
   }
 
   @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      email.hashCode ^
-      password.hashCode ^
-      image.hashCode ^
-      createdAt.hashCode ^
-      enabled.hashCode;
+  int get hashCode => id.hashCode ^ name.hashCode ^ email.hashCode ^ password.hashCode ^ image.hashCode ^ createdAt.hashCode ^ enabled.hashCode;
 
   @override
   bool operator ==(covariant UserEntity other) {
     if (identical(this, other)) return true;
     if (runtimeType != other.runtimeType) return false;
-    return id == other.id &&
-        name == other.name &&
-        email == other.email &&
-        password == other.password &&
-        image == other.image &&
-        createdAt == other.createdAt &&
-        enabled == other.enabled;
+    return id == other.id && name == other.name && email == other.email && password == other.password && image == other.image && createdAt == other.createdAt && enabled == other.enabled;
   }
 }
 
@@ -242,9 +221,9 @@ class UserRepository {
 class DSQL {
   late final PostgreSQLConnection _conn;
 
-  late final UserRepository _userrepository;
+  late final UserRepository _userRepository;
 
-  UserRepository get userrepository => _userrepository;
+  UserRepository get user => _userRepository;
 
   DSQL({required String postgresURL}) {
     final uri = Uri.parse(postgresURL);
@@ -252,10 +231,8 @@ class DSQL {
     final port = uri.port;
     final database = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
     final userInfo = uri.userInfo.split(':');
-    final username =
-        userInfo.isNotEmpty ? Uri.decodeComponent(userInfo[0]) : '';
-    final password =
-        userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : '';
+    final username = userInfo.isNotEmpty ? Uri.decodeComponent(userInfo[0]) : '';
+    final password = userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : '';
 
     _conn = PostgreSQLConnection(
       host,
@@ -265,20 +242,15 @@ class DSQL {
       password: password,
     );
 
-    _userrepository = UserRepository(_conn);
+    _userRepository = UserRepository(_conn);
   }
 
   Future<void> init() async {
     await _conn.open();
     final root = Directory.current;
-    final migrations = Directory(join(root.path, 'example', 'migrations'));
-    final files = migrations
-        .listSync()
-        .where((file) => file.statSync().type == FileSystemEntityType.file);
-    final versions = files
-        .where((file) =>
-            RegExp(r'^\V[\d]+\_\_(.*).sql$').hasMatch(basename(file.path)))
-        .toList();
+    final migrations = Directory(DSQLUtils.join(root.path, 'migrations'));
+    final files = migrations.listSync().where((file) => file.statSync().type == FileSystemEntityType.file);
+    final versions = files.where((file) => RegExp(r'^\V[\d]+\_\_(.*).sql$').hasMatch(DSQLUtils.join(file.path))).toList();
     for (final file in versions) {
       final version = await File(file.path).readAsString();
       await _conn.execute(version);

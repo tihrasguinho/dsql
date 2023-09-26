@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:strings/strings.dart';
 import 'package:path/path.dart' as p;
 
 import 'dsql_utils.dart';
@@ -108,15 +107,11 @@ class DSQLGen {
     for (final tableAndRepository in tablesAndRepositories) {
       final [repositoryName, ...] = tableAndRepository;
 
-      final repositoryNameNormalized = '_${repositoryName[0].toLowerCase()}${repositoryName.substring(1)}';
-
-      final repositoryGetterNormalized = repositoryName.replaceAll('Repository', '');
-
-      buffer.writeln('  late final $repositoryName $repositoryNameNormalized;');
+      buffer.writeln('  late final $repositoryName _${DSQLUtils.toCamelCase(repositoryName)};');
 
       buffer.writeln();
 
-      buffer.writeln('  $repositoryName get ${repositoryGetterNormalized[0].toLowerCase()}${repositoryGetterNormalized.substring(1)} => $repositoryNameNormalized;');
+      buffer.writeln('  $repositoryName get _${DSQLUtils.toCamelCase(repositoryName)} => ${DSQLUtils.toCamelCase(repositoryName.replaceAll('Repository', ''))};');
     }
 
     buffer.writeln();
@@ -159,11 +154,11 @@ class DSQLGen {
 
     buffer.writeln('    final root = Directory.current;');
 
-    buffer.writeln('    final migrations = Directory(join(root.path, \'migrations\'));');
+    buffer.writeln('    final migrations = Directory(DSQLUtils.join(root.path, \'migrations\'));');
 
     buffer.writeln('    final files = migrations.listSync().where((file) => file.statSync().type == FileSystemEntityType.file);');
 
-    buffer.writeln('    final versions = files.where((file) => RegExp(r\'^\\V[\\d]+\\_\\_(.*).sql\$\').hasMatch(basename(file.path))).toList();');
+    buffer.writeln('    final versions = files.where((file) => RegExp(r\'^\\V[\\d]+\\_\\_(.*).sql\$\').hasMatch(DSQLUtils.basename(file.path))).toList();');
 
     buffer.writeln('    for (final file in versions) {');
 
@@ -199,7 +194,7 @@ class DSQLGen {
       params.add(
         Param(
           type: sqlDataTypeToDartType(type),
-          name: name.toCamelCase(lower: true),
+          name: DSQLUtils.toCamelCase(name),
           nullable: !partsJoined.contains(RegExp(r'(NOT NULL|PRIMARY KEY)')),
           required: !partsJoined.contains('DEFAULT'),
           primaryKey: partsJoined.contains('PRIMARY KEY'),
@@ -239,7 +234,7 @@ class DSQLGen {
     for (var i = 0; i < params.length; i++) {
       final name = params[i].name;
 
-      entityBuffer.writeln('        \'${name.toSnakeCase()}\': $name,');
+      entityBuffer.writeln('        \'${DSQLUtils.toSnakeCase(name)}\': $name,');
     }
 
     entityBuffer.writeln('      };');
@@ -252,7 +247,7 @@ class DSQLGen {
       final name = params[i].name;
       final type = params[i].type;
 
-      entityBuffer.writeln('        $name: map[\'${name.toSnakeCase()}\'] as $type,');
+      entityBuffer.writeln('        $name: map[\'${DSQLUtils.toSnakeCase(name)}\'] as $type,');
     }
 
     entityBuffer.writeln('      );');
@@ -383,13 +378,13 @@ String createFunScript(String entityName, String tableName, List<Param> required
 
 String findManyFunScript(String entityName, String tableName, List<Param> params) {
   return '''  Future<List<$entityName>> findMany({
-    ${params.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? ${e.name}').join(', ')},
+    ${params.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
   }) async {
     try {
       PostgreSQLResult result;
 
       final filters = <String, Filter>{
-        ${params.map((e) => 'if (${e.name} != null) \'${e.name}\': ${e.name}').join(', ')},
+        ${params.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
       };
 
       if (filters.isNotEmpty) {
@@ -421,7 +416,7 @@ String findOneFunScript(String entityName, String tableName, List<Param> params)
   final parameters = pk != null
       ? '${pk.type} ${pk.name}) async {'
       : '''{
-    ${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? ${e.name}').join(', ')},
+    ${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
   }) async {''';
 
   return '''  Future<$entityName?> findOne($parameters
@@ -434,7 +429,7 @@ String findOneFunScript(String entityName, String tableName, List<Param> params)
       );
 
       return result.isNotEmpty ? $entityName.fromRow(result.first) : null;''' : '''final filters = <String, Filter>{
-        ${rest.map((e) => 'if (${e.name} != null) \'${e.name}\': ${e.name}').join(', ')},
+        ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
       };
 
       final result = await conn.query(

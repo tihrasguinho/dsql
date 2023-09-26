@@ -1,33 +1,17 @@
-import 'dart:io';
+// import 'lib/generated/dsql.dart';
 
-import 'package:dsql/dsql.dart';
-import 'package:dsql/src/dsql_gen.dart';
+// void main() async {
+//   final dsql = DSQL(postgresURL: 'postgres://postgres:postgres@localhost:5432/dsql');
 
-import 'lib/dsql.dart';
+//   await dsql.init();
 
-void main() async {
-  // await regenerate();
-  await test();
-}
+//   // Returns a UserEntity
 
-Future<void> regenerate() async {
-  final root = Directory.current;
+//   final user = await dsql.user.create(
+//     name: 'name',
+//     email: 'email',
+//     password: 'password',
+//   );
 
-  final migrations = Directory(join(root.path, 'migrations'));
-
-  await DSQLGen.readMigrations(migrations.path);
-}
-
-Future<void> test() async {
-  final dsql =
-      DSQL(postgresURL: 'postgres://postgres:postgres@localhost:5432/dsql');
-
-  await dsql.init();
-
-  final users =
-      await dsql.userrepository.delete('8a3de226-69c1-44e4-876b-0363af7826ae');
-
-  // print(users.map((e) => e.toMap()).toList());
-
-  print(users.toMap());
-}
+//   final users = await dsql.user.findMany();
+// }
