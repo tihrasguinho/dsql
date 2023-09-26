@@ -63,3 +63,7 @@
 
 - New enum for query filters added
 - Limit, offset and order by in findMany added!
+
+## 0.0.8+6
+
+- Bug fix on findMany method with limit, offset and order by!

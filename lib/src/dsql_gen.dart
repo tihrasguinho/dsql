@@ -400,7 +400,7 @@ String findManyFunScript(String entityName, String tableName, List<Param> params
     try {
       PostgreSQLResult result;
 
-      final orderByAndLimit = '\${offset != null ? '\$offset ' : ''}\${limit != null ? '\$limit ' : ''}\${orderBy != null ? orderBy.param : ''}';
+      final orderByAndLimit = '\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit ' : ''}\${orderBy != null ? 'ORDER BY \${orderBy.param}' : ''}';
 
       final filters = <String, Filter>{
         ${params.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
