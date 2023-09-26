@@ -1,15 +1,33 @@
-import 'lib/generated/dsql.dart';
+import 'dart:io';
+
+import 'package:dsql/dsql.dart';
+import 'package:dsql/src/dsql_gen.dart';
+
+import 'lib/dsql.dart';
 
 void main() async {
-  final dsql = DSQL('localhost', 5432, 'database', username: 'username', password: 'password');
+  // await regenerate();
+  await test();
+}
 
-  await dsql.initialize();
+Future<void> regenerate() async {
+  final root = Directory.current;
 
-  final user = await dsql.user.create(name: 'name', email: 'email', password: 'password', image: 'image');
+  final migrations = Directory(join(root.path, 'migrations'));
 
-  await dsql.user.findMany(name: 'name');
+  await DSQLGen.readMigrations(migrations.path);
+}
 
-  await dsql.user.findById(user.id);
+Future<void> test() async {
+  final dsql =
+      DSQL(postgresURL: 'postgres://postgres:postgres@localhost:5432/dsql');
 
-  await dsql.user.update();
+  await dsql.init();
+
+  final users =
+      await dsql.userrepository.delete('8a3de226-69c1-44e4-876b-0363af7826ae');
+
+  // print(users.map((e) => e.toMap()).toList());
+
+  print(users.toMap());
 }

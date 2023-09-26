@@ -35,3 +35,8 @@
 ## 0.0.7
 
 - Improvement on CLI commands!
+
+## 0.0.8
+
+- New query filter options in findMany, findOne, update and delete methods!
+- Added StringFilter, IntegerFilter, DoubleFilter, TimestampFilter and BooleanFilter!

@@ -1,6 +1,6 @@
 -- Entity => UserEntity 
 CREATE TABLE IF NOT EXISTS tb_users (
-  id VARCHAR(11) PRIMARY KEY NOT NULL DEFAULT id_generator(),
+  id UUID PRIMARY KEY NOT NULL DEFAULT uuid_generate_v4(),
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
