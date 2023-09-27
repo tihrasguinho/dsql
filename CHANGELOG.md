@@ -75,3 +75,8 @@
 ## 0.0.8+71
 
 - Another bug fixed on findMany method!
+
+## 0.0.9
+
+- New filter methods added
+- New filter extensions added
