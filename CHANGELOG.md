@@ -80,3 +80,7 @@
 
 - New filter methods added
 - New filter extensions added
+
+## 0.0.9+1
+
+- Improvement applied on entity and repository script!

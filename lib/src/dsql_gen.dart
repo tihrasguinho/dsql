@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'dsql_utils.dart';
+import 'internal/table.dart';
 
 class DSQLGen {
   static final _tableRegex = RegExp(
@@ -10,6 +11,12 @@ class DSQLGen {
     caseSensitive: false,
     multiLine: true,
   );
+
+  // static final _referencesRegex = RegExp(
+  //   r'REFERENCES\s(.*)\s?\((.*)\)',
+  //   caseSensitive: false,
+  //   multiLine: true,
+  // );
 
   static Future<void> readMigrations(String path, [String? output]) async {
     stdout.writeln('Reading migrations... $path${output != null ? ' -> $output' : ''}');
@@ -36,13 +43,17 @@ class DSQLGen {
 
     final tablesMatched = _tableRegex.allMatches(lastVersion);
 
-    final tablesPostProcessed = <List<String>>[];
+    final entityMetadatas = <EntityMetadata>[];
 
     for (final match in tablesMatched) {
-      tablesPostProcessed.add(classGenerator(match));
+      final entityName = match.group(1) ?? '';
+      final tableName = match.group(2) ?? '';
+      final content = match.group(3) ?? '';
+
+      entityMetadatas.add(_getEntityMetadata(entityName, tableName, content));
     }
 
-    final content = generateDSQLClasses(tablesPostProcessed);
+    final content = _generateDSQLClasses(entityMetadatas);
 
     final outputDir = Directory(output ?? p.join(path, '..', 'lib', 'generated'));
 
@@ -59,7 +70,7 @@ class DSQLGen {
     exit(0);
   }
 
-  static String generateDSQLClasses(List<List<String>> tablesAndRepositories) {
+  static String _generateDSQLClasses(List<EntityMetadata> metadatas) {
     final buffer = StringBuffer();
 
     buffer.writeln('import \'dart:io\';');
@@ -76,24 +87,20 @@ class DSQLGen {
 
     buffer.writeln('');
 
-    for (final tableAndRepository in tablesAndRepositories) {
-      final [..., entityName, entityContent] = tableAndRepository;
-
-      buffer.writeln('// $entityName');
+    for (final metadata in metadatas) {
+      buffer.writeln('// ${metadata.entityName}');
 
       buffer.writeln('');
 
-      buffer.writeln(entityContent);
+      buffer.writeln(metadata.entityContent);
     }
 
-    for (final tableAndRepository in tablesAndRepositories) {
-      final [repositoryName, repositoryContent, ...] = tableAndRepository;
-
-      buffer.writeln('// $repositoryName');
+    for (final metadata in metadatas) {
+      buffer.writeln('// ${metadata.repositoryName}');
 
       buffer.writeln('');
 
-      buffer.writeln(repositoryContent);
+      buffer.writeln(metadata.repositoryContent);
     }
 
     buffer.writeln();
@@ -104,14 +111,12 @@ class DSQLGen {
 
     buffer.writeln();
 
-    for (final tableAndRepository in tablesAndRepositories) {
-      final [repositoryName, ...] = tableAndRepository;
-
-      buffer.writeln('  late final $repositoryName _${DSQLUtils.toCamelCase(repositoryName)};');
+    for (final metadata in metadatas) {
+      buffer.writeln('  late final ${metadata.repositoryName} _${DSQLUtils.toCamelCase(metadata.repositoryName)};');
 
       buffer.writeln();
 
-      buffer.writeln('  $repositoryName get ${DSQLUtils.toCamelCase(repositoryName.replaceAll('Repository', ''))} => _${DSQLUtils.toCamelCase(repositoryName)};');
+      buffer.writeln('  ${metadata.repositoryName} get ${DSQLUtils.toCamelCase(metadata.repositoryName.replaceAll('Repository', ''))} => _${DSQLUtils.toCamelCase(metadata.repositoryName)};');
     }
 
     buffer.writeln();
@@ -136,10 +141,8 @@ class DSQLGen {
 
     buffer.writeln();
 
-    for (final tableAndRepository in tablesAndRepositories) {
-      final [repositoryName, ...] = tableAndRepository;
-
-      buffer.writeln('    _${DSQLUtils.toCamelCase(repositoryName)} = $repositoryName(_conn);');
+    for (final metadata in metadatas) {
+      buffer.writeln('    _${DSQLUtils.toCamelCase(metadata.repositoryName)} = ${metadata.repositoryName}(_conn);');
     }
 
     buffer.writeln('  }');
@@ -175,14 +178,12 @@ class DSQLGen {
     return buffer.toString();
   }
 
-  static List<String> classGenerator(RegExpMatch match) {
-    final entityName = match.group(1) ?? '';
-    final tableName = match.group(2) ?? '';
-    final contentLines = match.group(3)?.trim().split('\n') ?? [];
+  static EntityMetadata _getEntityMetadata(String entityName, String tableName, String content) {
+    final contentLines = content.trim().split('\n');
 
     assert(entityName.isNotEmpty && tableName.isNotEmpty && contentLines.isNotEmpty, 'Invalid table script, please check your code!');
 
-    final params = <Param>[];
+    final params = <_Param>[];
 
     for (final line in contentLines) {
       final [name, type, ...parts] = line.trim().split(' ');
@@ -190,7 +191,7 @@ class DSQLGen {
       final partsJoined = parts.join(' ').toUpperCase();
 
       params.add(
-        Param(
+        _Param(
           type: sqlDataTypeToDartType(type),
           name: DSQLUtils.toCamelCase(name),
           nullable: !partsJoined.contains(RegExp(r'(NOT NULL|PRIMARY KEY)')),
@@ -202,139 +203,19 @@ class DSQLGen {
 
     final entityBuffer = StringBuffer();
 
-    entityBuffer.writeln('class $entityName {');
-
-    for (var i = 0; i < params.length; i++) {
-      final name = params[i].name;
-      final type = params[i].type;
-      final nullable = params[i].nullable;
-
-      entityBuffer.writeln('    final $type${nullable ? '?' : ''} $name;');
-    }
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('    const $entityName({');
-
-    for (var i = 0; i < params.length; i++) {
-      final name = params[i].name;
-      final nullable = params[i].nullable;
-
-      entityBuffer.writeln('        ${nullable ? 'this.$name' : 'required this.$name'},');
-    }
-
-    entityBuffer.writeln('    });');
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('    Map<String, dynamic> toMap() => {');
-
-    for (var i = 0; i < params.length; i++) {
-      final name = params[i].name;
-
-      entityBuffer.writeln('        \'${DSQLUtils.toSnakeCase(name)}\': $name,');
-    }
-
-    entityBuffer.writeln('      };');
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('    static $entityName fromMap(Map<String, dynamic> map) => $entityName(');
-
-    for (var i = 0; i < params.length; i++) {
-      final name = params[i].name;
-      final type = params[i].type;
-
-      entityBuffer.writeln('        $name: map[\'${DSQLUtils.toSnakeCase(name)}\'] as $type,');
-    }
-
-    entityBuffer.writeln('      );');
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('    static $entityName fromRow(List row) {');
-
-    entityBuffer.writeln('      final [${params.map((e) => '${e.type}${e.nullable ? '?' : ''} ${e.name}').join(', ')}] = row;');
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('      return $entityName(');
-
-    for (var i = 0; i < params.length; i++) {
-      final name = params[i].name;
-
-      entityBuffer.writeln('        $name: $name,');
-    }
-
-    entityBuffer.writeln('      );');
-
-    entityBuffer.writeln('    }');
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('    @override');
-
-    entityBuffer.writeln('    int get hashCode => ${params.map((e) => '${e.name}.hashCode').join(' ^ ')};');
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('    @override');
-
-    entityBuffer.writeln('    bool operator ==(covariant $entityName other) {');
-
-    entityBuffer.writeln('      if (identical(this, other)) return true;');
-
-    entityBuffer.writeln('      if (runtimeType != other.runtimeType) return false;');
-
-    entityBuffer.writeln('      return ${params.map((e) => '${e.name} == other.${e.name}').join(' && ')};');
-
-    entityBuffer.writeln('    }');
-
-    entityBuffer.writeln();
-
-    entityBuffer.writeln('}');
+    entityBuffer.writeln(_entityBuilder(entityName, params));
 
     final repositoryBuffer = StringBuffer();
 
-    final repositoryName = '${entityName.replaceAll('Entity', '')}Repository';
+    repositoryBuffer.writeln(_repositoryBuilder(entityName, tableName, params));
 
-    repositoryBuffer.writeln('class $repositoryName {');
-
-    repositoryBuffer.writeln('  final PostgreSQLConnection conn;');
-
-    repositoryBuffer.writeln();
-
-    repositoryBuffer.writeln('  $repositoryName(this.conn);');
-
-    repositoryBuffer.writeln();
-
-    repositoryBuffer.writeln(createFunScript(entityName, tableName, params));
-
-    repositoryBuffer.writeln();
-
-    repositoryBuffer.writeln(findManyFunScript(entityName, tableName, params));
-
-    repositoryBuffer.writeln();
-
-    repositoryBuffer.writeln(findOneFunScript(entityName, tableName, params));
-
-    repositoryBuffer.writeln();
-
-    repositoryBuffer.writeln(updateFunScript(entityName, tableName, params));
-
-    repositoryBuffer.writeln();
-
-    repositoryBuffer.writeln(deleteFunScript(entityName, tableName, params));
-
-    repositoryBuffer.writeln('}');
-
-    repositoryBuffer.writeln();
-
-    repositoryBuffer.writeln(orderByEnum(entityName, tableName, params));
-
-    repositoryBuffer.writeln();
-
-    return [repositoryName, repositoryBuffer.toString(), entityName, entityBuffer.toString()];
+    return EntityMetadata(
+      name: tableName,
+      entityName: '${entityName}Entity',
+      entityContent: entityBuffer.toString(),
+      repositoryName: '${entityName}Repository',
+      repositoryContent: repositoryBuffer.toString(),
+    );
   }
 
   static Type sqlDataTypeToDartType(String type, [bool nullable = false]) => switch (type) {
@@ -347,211 +228,239 @@ class DSQLGen {
       };
 }
 
-class Param {
+class _Param {
   final String name;
   final Type type;
   final bool nullable;
   final bool required;
   final bool primaryKey;
 
-  Param({required this.name, required this.type, required this.nullable, required this.required, required this.primaryKey});
+  _Param({required this.name, required this.type, required this.nullable, required this.required, required this.primaryKey});
 }
 
-String orderByEnum(String entityName, String tableName, List<Param> params) {
-  return '''enum ${entityName.replaceAll('Entity', '')}OrderBy {
-    ${params.map((e) => '${e.name}Asc(\'${e.name.toSnakeCase()} ASC\'),\n${e.name}Desc(\'${e.name.toSnakeCase()} DESC\')').join(', ')};
+String _entityBuilder(String entity, List<_Param> params) {
+  return '''/// An entity created based on .sql file founded on migrations folder
+class ${entity}Entity {
 
-    final String param;
+  ${params.map((e) => 'final ${e.type}${e.nullable ? '?' : ''} ${DSQLUtils.toCamelCase(e.name)};').join('\n')}
 
-    const ${entityName.replaceAll('Entity', '')}OrderBy(this.param);
-  }''';
+  const ${entity}Entity({${params.map((e) => '${e.nullable ? '' : 'required '}this.${DSQLUtils.toCamelCase(e.name)}').join(', ')}});
+
+  Map<String, dynamic> toMap() {
+    return {
+      ${params.map((e) => '\'${DSQLUtils.toSnakeCase(e.name)}\': ${DSQLUtils.toCamelCase(e.name)}${e.type == DateTime ? '.millisecondsSinceEpoch' : ''}').join(', ')},
+    };
+  }
+
+  factory ${entity}Entity.fromMap(Map<String, dynamic> map) {
+    return ${entity}Entity(
+      ${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: ${e.type == DateTime ? 'DateTime.fromMillisecondsSinceEpoch(map[\'${DSQLUtils.toSnakeCase(e.name)}\'] as int)' : 'map[\'${DSQLUtils.toSnakeCase(e.name)}\'] as ${e.type}'}').join(', ')}
+    );
+  }
+
+  factory ${entity}Entity.fromRow(List row) {
+    final [${params.map((e) => '${e.type}${e.nullable ? '?' : ''} ${DSQLUtils.toCamelCase(e.name)}').join(', ')}] = row;
+
+    return ${entity}Entity(
+      ${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: ${DSQLUtils.toCamelCase(e.name)}').join(', ')},
+    );
+  }
+
+  @override
+  String toString() {
+    return '${entity}Entity(${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: ${DSQLUtils.toCamelCase(e.name)}').join(', ')})';
+  }
+
+  @override
+  bool operator ==(covariant ${entity}Entity other) {
+    if (identical(this, other)) return true;
+    if (runtimeType != other.runtimeType) return false;
+
+    return ${params.map((e) => '${DSQLUtils.toCamelCase(e.name)} == other.${DSQLUtils.toCamelCase(e.name)}').join(' && ')};
+  }
+
+  @override
+  int get hashCode {
+    return ${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}.hashCode').join(' ^ ')};
+  }
+}''';
 }
 
-String createFunScript(String entityName, String tableName, List<Param> params) {
+String _repositoryBuilder(String entity, String table, List<_Param> params) {
   final requiredParams = params.where((e) => e.required && !e.nullable).toList();
+  final primaryKey = params.any((e) => e.primaryKey) ? params.firstWhere((e) => e.primaryKey) : null;
+  final rest = params.where((e) => !e.primaryKey).toList();
 
-  return '''  Future<$entityName> create({
-    ${requiredParams.map((e) => 'required ${e.type} ${e.name}').join(', ')},
-  }) async {
+  return '''/// Repository for ${entity}Entity
+class ${entity}Repository {
+  final PostgreSQLConnection conn;
+
+  const ${entity}Repository(this.conn);
+
+  /// Creates a new [${entity}Entity] in database
+  Future<${entity}Entity> create({${requiredParams.map((e) => 'required ${e.type} ${e.name}').join(', ')},}) async {
     try {
       final result = await conn.query(
-        'INSERT INTO $tableName (${requiredParams.map((e) => e.name).join(', ')}) VALUES (${requiredParams.map((e) => '@${e.name}').join(', ')}) RETURNING *',
+        'INSERT INTO $table (${requiredParams.map((e) => DSQLUtils.toSnakeCase(e.name)).join(', ')}) VALUES (${requiredParams.map((e) => '@${e.name}').join(', ')}) RETURNING *',
         substitutionValues: {
           ${requiredParams.map((e) => '\'${e.name}\': ${e.name}').join(', ')},
         },
       );
 
-      return $entityName.fromRow(result.first);
+      return ${entity}Entity.fromRow(result.first);
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
     } on Exception catch (e) {
       throw Exception(e);
     }
-  }''';
-}
+  }
 
-String findManyFunScript(String entityName, String tableName, List<Param> params) {
-  return '''  Future<List<$entityName>> findMany({
+  /// Returns a list of [${entity}Entity] from database
+  Future<List<${entity}Entity>> findMany({
     ${params.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-    ${entityName.replaceAll('Entity', '')}OrderBy? orderBy,
+    ${entity}OrderBy? orderBy,
     int? limit,
     int? offset,
   }) async {
     try {
-      PostgreSQLResult result;
-
-      final orderByOffsetAndLimit = '\${orderBy != null ? 'ORDER BY \${orderBy.param} ' : ''}\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit' : ''}';
-
       final filters = <String, Filter>{
         ${params.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
       };
 
+      final orderByOffsetAndLimit = '\${orderBy != null ? 'ORDER BY \${orderBy.param} ' : ''}\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit' : ''}';
+
+      PostgreSQLResult result;
+
       if (filters.isNotEmpty) {
         result = await conn.query(
-          'SELECT * FROM $tableName WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' OR ')}\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
+          'SELECT * FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')}\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
           substitutionValues: {
             ...filters.map((k, v) => MapEntry(k, v.value)),
           },
         );
       } else {
-        result = await conn.query(
-          'SELECT * FROM $tableName\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
-        );
+        result = await conn.query('SELECT * FROM $table\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};');
       }
 
-      return result.map($entityName.fromRow).toList();
+      return result.map(${entity}Entity.fromRow).toList();
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
     } on Exception catch (e) {
       throw Exception(e);
     }
-  }''';
-}
+  }
 
-String findOneFunScript(String entityName, String tableName, List<Param> params) {
-  final pk = params.any((e) => e.primaryKey) ? params.firstWhere((e) => e.primaryKey) : null;
-  final rest = params.where((e) => !e.primaryKey);
-
-  final parameters = pk != null
-      ? '${pk.type} ${pk.name}) async {'
-      : '''{
-    ${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-  }) async {''';
-
-  return '''  Future<$entityName?> findOne($parameters
+  /// Returns a single [${entity}Entity] from database if exists
+  Future<${entity}Entity?> findOne(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name}' : ''}
+  ${primaryKey != null ? '' : '{${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},}'}
+  ) async {
     try {
-      ${pk != null ? '''final result = await conn.query(
-        'SELECT * FROM $tableName WHERE ${pk.name} = @${pk.name};',
+      ${primaryKey != null ? '''final result = await conn.query(
+        'SELECT * FROM $table WHERE ${primaryKey.name} = @${primaryKey.name};',
         substitutionValues: {
-          '${pk.name}': ${pk.name},
+          '${primaryKey.name}': ${primaryKey.name},
         },
       );
 
-      return result.isNotEmpty ? $entityName.fromRow(result.first) : null;''' : '''final filters = <String, Filter>{
+      return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;''' : '''final filters = <String, Filter>{
         ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
       };
 
       final result = await conn.query(
-        'SELECT * FROM $tableName WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')};',
+        'SELECT * FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')};',
         substitutionValues: {
           ...filters.map((k, v) => MapEntry(k, v.value)),
         },
       );
 
-      return result.isNotEmpty ? $entityName.fromRow(result.first) : null;'''}
+      return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;'''}
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
     } on Exception catch (e) {
       throw Exception(e);
     }
-  }''';
-}
-
-String updateFunScript(String entityName, String tableName, List<Param> params) {
-  final pk = params.any((e) => e.primaryKey) ? params.firstWhere((e) => e.primaryKey) : null;
-  final rest = params.where((e) => !e.primaryKey);
-
-  final parameters = pk != null
-      ? '${pk.type} ${pk.name},{${rest.map((e) => '${e.type}? set${DSQLUtils.toPascalCase(e.name)}').join(', ')},}) async {'
-      : '''{
-    ${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-    ${rest.map((e) => '${e.type}? set${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-  }) async {''';
-
-  return '''  Future<$entityName> update($parameters
+  }
+  
+  /// Updates a [${entity}Entity] in database
+  Future<${entity}Entity> update(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name},' : ''}{
+  ${primaryKey != null ? '' : '${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},'}
+  ${rest.map((e) => '${e.type}? set${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+  }) async {
     try {
       final valuesToUpdate = <String, dynamic>{
         ${rest.map((e) => 'if (set${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': set${DSQLUtils.toPascalCase(e.name)}').join(', ')},
       };
 
-      if (valuesToUpdate.isEmpty) {
+       if (valuesToUpdate.isEmpty) {
         throw Exception('You must provide at least one value to update!');
       }
 
-      ${pk != null ? '''final result = await conn.query(
-        'UPDATE $tableName SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE ${pk.name} = @${pk.name} RETURNING *;',
+      ${primaryKey != null ? '''final result = await conn.query(
+        'UPDATE $table SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE ${primaryKey.name} = @${primaryKey.name} RETURNING *;',
         substitutionValues: {
-          '${pk.name}': ${pk.name},
+          '${primaryKey.name}': ${primaryKey.name},
           ...valuesToUpdate,
         },
       );
 
-      return $entityName.fromRow(result.first);''' : '''final filters = <String, Filter>{
+      return ${entity}Entity.fromRow(result.first);''' : '''final filters = <String, Filter>{
         ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
       };
 
       final result = await conn.query(
-        'UPDATE $tableName SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
+        'UPDATE ${entity}Entity SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
         substitutionValues: {
           ...filters.map((k, v) => MapEntry(k, v.value)),
           ...valuesToUpdate,
         },
       );
 
-      return $entityName.fromRow(result.first);'''}
+      return ${entity}Entity.fromRow(result.first);'''}
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
     } on Exception catch (e) {
       throw Exception(e);
     }
-  }''';
+  }
+
+  /// Deletes a [${entity}Entity] from database
+  Future<${entity}Entity> delete(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name}' : ''}
+  ${primaryKey != null ? '' : '{${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},}'}
+  ) async {
+    try {
+      ${primaryKey != null ? '''final result = await conn.query(
+        'DELETE FROM $table WHERE ${primaryKey.name} = @${primaryKey.name} RETURNING *;',
+        substitutionValues: {
+          '${primaryKey.name}': ${primaryKey.name},
+        },
+      );
+
+      return ${entity}Entity.fromRow(result.first);''' : '''final filters = <String, Filter>{
+        ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+      };
+
+      final result = await conn.query(
+       'DELETE FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
+        substitutionValues: {
+          ...filters.map((k, v) => MapEntry(k, v.value)),
+        },
+      );
+
+      return ${entity}Entity.fromRow(result.first);'''}
+    } on PostgreSQLException catch (e) {
+      throw Exception(e.message);
+    } on Exception catch (e) {
+      throw Exception(e);
+    }
+  }
 }
 
-String deleteFunScript(String entityName, String tableName, List<Param> params) {
-  final pk = params.any((e) => e.primaryKey) ? params.firstWhere((e) => e.primaryKey) : null;
-  final rest = params.where((e) => !e.primaryKey);
+/// Options for sorting when fetching [${entity}Entity's] from database
+enum ${entity}OrderBy {
+    ${params.map((e) => '${e.name}Asc(\'${e.name.toSnakeCase()} ASC\'),\n${e.name}Desc(\'${e.name.toSnakeCase()} DESC\')').join(', ')};
 
-  final parameters = pk != null
-      ? '${pk.type} ${pk.name}) async {'
-      : '''{
-    ${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-  }) async {''';
+    final String param;
 
-  return '''  Future<$entityName> delete($parameters
-    try {
-      ${pk != null ? '''final result = await conn.query(
-        'DELETE FROM $tableName WHERE ${pk.name} = @${pk.name} RETURNING *;',
-        substitutionValues: {
-          '${pk.name}': ${pk.name},
-        },
-      );
-
-      return $entityName.fromRow(result.first);''' : '''final filters = <String, Filter>{
-        ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-      };
-
-      final result = await conn.query(
-       'DELETE FROM $tableName WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
-        substitutionValues: {
-          ...filters.map((k, v) => MapEntry(k, v.value)),
-        },
-      );
-
-      return $entityName.fromRow(result.first);'''}
-    } on PostgreSQLException catch (e) {
-      throw Exception(e.message);
-    } on Exception catch (e) {
-      throw Exception(e);
-    }
+    const ${entity}OrderBy(this.param);
   }''';
 }

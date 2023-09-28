@@ -1,4 +1,4 @@
--- Entity => UserEntity 
+-- Entity => User
 CREATE TABLE IF NOT EXISTS tb_users (
   id UUID PRIMARY KEY NOT NULL DEFAULT uuid_generate_v4(),
   name VARCHAR(255) NOT NULL,
@@ -7,4 +7,12 @@ CREATE TABLE IF NOT EXISTS tb_users (
   image VARCHAR(255),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   enabled BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Entity => Friend
+CREATE TABLE IF NOT EXISTS tb_friends (
+  id UUID PRIMARY KEY NOT NULL DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES tb_users(id),
+  friend_id UUID NOT NULL REFERENCES tb_users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
