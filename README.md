@@ -2,80 +2,43 @@
 
 #### An Experimental Dart ORM or Something Similar
 
-##### Initially, the idea is to read a .sql file, as in Spring Migration, for example, and generate the classes to be used in Dart!
-
-##### - Example:
-
-##### First you need to install the dsql globally
+##### Installation
 
 ```shell
 dart pub global activate dsql
 ```
 
-##### Then add the dsql package to your pubspec.yaml
+##### and add dsql to your pubspec.yaml
 
 ```yaml
 dependencies:
-  dsql: ^0.0.9+1
+  dsql: ^0.0.9+2
 ```
 
-##### In the root of the project, create a folder called "migrations" and place your migrations inside it, each with its current version number (similar to Spring Boot).
+##### Create a file .env in the root of your project with database connection information.
 
- - root/migrations/V1__initial.sql
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+```
 
-##### Inside the SQL script for table creations, you need to provide the "EntityName" that will be used to generate Dart classes based on it.
+##### In the root, create a folder called migrations with your .sql file, like spring boot for example.
 
 ```sql
--- Entity => UserEntity 
-CREATE TABLE IF NOT EXISTS tb_users (
-  id VARCHAR(11) PRIMARY KEY NOT NULL DEFAULT id_generator(),
+-- ./migrations/V1__create_users_table.sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY DEFAULT nextval('users_id_seq'),
   name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  image VARCHAR(255),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  enabled BOOLEAN NOT NULL DEFAULT TRUE
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-##### After that, you will need to run the "dsql" command to generate all classes for manipulation on PostgreSQL.
+##### Then you can run the migrations command with the following command
 
-```shell
-dsql --generate
 ```
-
-##### It will create a "dsql.dart" file inside the "lib/generated" directory, or if you want to generate it in another directory, you can use "--output" or "-o" to specify another path.
-
-
-##### Afterward, you can create an instance of the DSQL class, providing all the database configurations, and then call the "initialize" method.
-
-```dart
-void main() async {
-  final dsql = DSQL('localhost', 5432, 'postgres');
-
-  await dsql.initialize():
-}
-```
-
-##### All the provided entities will generate a repository inside the DSQL class, and you can easily access them by their name.
-
-##### - Example based on this SQL:
-
-```dart
-void main() async {
-  final dsql = DSQL('localhost', 5432, 'postgres');
-
-  await dsql.initialize():
-
-  await dsql.user.create(name: 'name', email: 'email', password: 'password', image: 'image');
-
-  await dsql.user.findMany();
-
-  await dsql.user.findById('some_user_id');
-
-  await dsql.user.update('some_user_id', name: 'new_name', email: 'new_email');
-
-  await dsql.user.delete('some_user_id');}
+dsql --generate or -g // Generate a dsql.dart file inside the lib/generated folder
+dsql -g -o /path/to/output // Generates in a custom path
 ```
 
 ##### Next steps:

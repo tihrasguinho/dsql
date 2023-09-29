@@ -28,7 +28,7 @@ FutureOr<void> main(List<String> args) async {
     if (help) {
       return showHelp();
     } else if (version) {
-      return getVersion('0.0.9+1');
+      return getVersion('0.0.9+2');
     } else if (generate) {
       if (!root.listSync().any((file) => file.statSync().type == FileSystemEntityType.file && p.basename(file.path) == 'pubspec.yaml')) {
         stdout.writeln('No pubspec.yaml found on this directory!');
@@ -51,7 +51,8 @@ void getVersion(String version) {
 }
 
 void showHelp() {
-  stdout.writeln('''
+  stdout.writeln(
+      '''
 DSQL CLI - Dart SQL Schema Generator
 
 Usage: dsql [options]

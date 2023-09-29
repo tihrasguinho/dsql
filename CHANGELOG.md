@@ -84,3 +84,7 @@
 ## 0.0.9+1
 
 - Improvement applied on entity and repository script!
+
+## 0.0.9+2
+
+- Now you need to provide the DATABASE_URL in the .env file!

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:postgres/postgres.dart';
 
 import 'dsql_utils.dart';
 import 'internal/table.dart';
@@ -12,6 +13,8 @@ class DSQLGen {
     multiLine: true,
   );
 
+  static final _propertiesLineRegex = RegExp(r'^(.*)=(.*)$');
+
   // static final _referencesRegex = RegExp(
   //   r'REFERENCES\s(.*)\s?\((.*)\)',
   //   caseSensitive: false,
@@ -19,14 +22,33 @@ class DSQLGen {
   // );
 
   static Future<void> readMigrations(String path, [String? output]) async {
-    stdout.writeln('Reading migrations... $path${output != null ? ' -> $output' : ''}');
-
     final dir = Directory(path);
 
     if (!dir.existsSync()) {
       stdout.writeln('No migrations directory found!');
       exit(0);
     }
+
+    final dotenv = File(p.join(path, '..', '.env'));
+
+    if (!await dotenv.exists()) {
+      stdout.writeln('No .env found, you must create a file .env in the application root!');
+      exit(0);
+    }
+
+    final properties = await dotenv.readAsLines();
+
+    if (properties.isEmpty) {
+      stdout.writeln('.env found but no configuration found!');
+      exit(0);
+    }
+
+    if (!properties.any((line) => _propertiesLineRegex.hasMatch(line) && line.startsWith('DATABASE_URL'))) {
+      stdout.writeln('.env found but no DATABASE_URL!');
+      exit(0);
+    }
+
+    final databaseURL = Uri.parse(properties.firstWhere((line) => _propertiesLineRegex.hasMatch(line) && line.startsWith('DATABASE_URL')).replaceAll('DATABASE_URL=', ''));
 
     final files = dir.listSync(recursive: true).where((file) => file.statSync().type == FileSystemEntityType.file);
 
@@ -40,6 +62,31 @@ class DSQLGen {
     versions.sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
 
     final lastVersion = await File(versions.last.path).readAsString();
+
+    stdout.writeln('Migration found... ${p.basename(versions.last.path)}');
+
+    try {
+      final PostgreSQLConnection conn = PostgreSQLConnection(
+        databaseURL.host,
+        databaseURL.port,
+        databaseURL.pathSegments.isNotEmpty ? databaseURL.pathSegments.first : '',
+        username: databaseURL.userInfo.split(':')[0],
+        password: databaseURL.userInfo.split(':')[1],
+        useSSL: databaseURL.queryParameters['sslmode'] == 'require',
+      );
+
+      await conn.open();
+
+      await conn.execute(lastVersion);
+
+      await conn.close();
+    } on PostgreSQLException catch (e) {
+      stdout.writeln(e.message);
+      exit(0);
+    } on Exception catch (e) {
+      stdout.writeln(e.toString());
+      exit(0);
+    }
 
     final tablesMatched = _tableRegex.allMatches(lastVersion);
 
@@ -244,7 +291,7 @@ class ${entity}Entity {
 
   ${params.map((e) => 'final ${e.type}${e.nullable ? '?' : ''} ${DSQLUtils.toCamelCase(e.name)};').join('\n')}
 
-  const ${entity}Entity({${params.map((e) => '${e.nullable ? '' : 'required '}this.${DSQLUtils.toCamelCase(e.name)}').join(', ')}});
+  const ${entity}Entity({${params.map((e) => '${e.nullable ? '' : 'required '}this.${DSQLUtils.toCamelCase(e.name)}').join(', ')},});
 
   Map<String, dynamic> toMap() {
     return {
@@ -254,12 +301,12 @@ class ${entity}Entity {
 
   factory ${entity}Entity.fromMap(Map<String, dynamic> map) {
     return ${entity}Entity(
-      ${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: ${e.type == DateTime ? 'DateTime.fromMillisecondsSinceEpoch(map[\'${DSQLUtils.toSnakeCase(e.name)}\'] as int)' : 'map[\'${DSQLUtils.toSnakeCase(e.name)}\'] as ${e.type}'}').join(', ')}
+      ${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: ${e.type == DateTime ? 'DateTime.fromMillisecondsSinceEpoch(map[\'${DSQLUtils.toSnakeCase(e.name)}\'] as int)' : 'map[\'${DSQLUtils.toSnakeCase(e.name)}\'] as ${e.type}'}').join(', ')},
     );
   }
 
   factory ${entity}Entity.fromRow(List row) {
-    final [${params.map((e) => '${e.type}${e.nullable ? '?' : ''} ${DSQLUtils.toCamelCase(e.name)}').join(', ')}] = row;
+    final [${params.map((e) => '${e.type}${e.nullable ? '?' : ''} ${DSQLUtils.toCamelCase(e.name)}').join(', ')},] = row;
 
     return ${entity}Entity(
       ${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: ${DSQLUtils.toCamelCase(e.name)}').join(', ')},
