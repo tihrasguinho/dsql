@@ -7,19 +7,15 @@ import 'dsql_utils.dart';
 import 'internal/table.dart';
 
 class DSQLGen {
+  static String schema = 'public';
+
   static final _tableRegex = RegExp(
-    r'^\s*--\s*Entity\s*=>\s*(\w+)\s*\n\s*CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(\w+)\s*\(([^;]*?)\);$',
+    r'^--\s*Entity\s*=>\s*(\w+)\s*\n\s*CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(\w+)\s*\(([^;]*?)\);$',
     caseSensitive: false,
     multiLine: true,
   );
 
-  static final _propertiesLineRegex = RegExp(r'^(.*)=(.*)$');
-
-  // static final _referencesRegex = RegExp(
-  //   r'REFERENCES\s(.*)\s?\((.*)\)',
-  //   caseSensitive: false,
-  //   multiLine: true,
-  // );
+  static final _dotEnvRegex = RegExp(r'^(.*)=(.*)$');
 
   static Future<void> readMigrations(String path, [String? output]) async {
     final dir = Directory(path);
@@ -43,12 +39,12 @@ class DSQLGen {
       exit(0);
     }
 
-    if (!properties.any((line) => _propertiesLineRegex.hasMatch(line) && line.startsWith('DATABASE_URL'))) {
+    if (!properties.any((line) => _dotEnvRegex.hasMatch(line) && line.startsWith('DATABASE_URL'))) {
       stdout.writeln('.env found but no DATABASE_URL!');
       exit(0);
     }
 
-    final databaseURL = Uri.parse(properties.firstWhere((line) => _propertiesLineRegex.hasMatch(line) && line.startsWith('DATABASE_URL')).replaceAll('DATABASE_URL=', ''));
+    final databaseURL = Uri.parse(properties.firstWhere((line) => _dotEnvRegex.hasMatch(line) && line.startsWith('DATABASE_URL')).replaceAll('DATABASE_URL=', ''));
 
     final files = dir.listSync(recursive: true).where((file) => file.statSync().type == FileSystemEntityType.file);
 
@@ -66,16 +62,41 @@ class DSQLGen {
     stdout.writeln('Migration found... ${p.basename(versions.last.path)}');
 
     try {
+      final userInfo = databaseURL.userInfo.split(':');
+
       final PostgreSQLConnection conn = PostgreSQLConnection(
         databaseURL.host,
         databaseURL.port,
         databaseURL.pathSegments.isNotEmpty ? databaseURL.pathSegments.first : '',
-        username: databaseURL.userInfo.split(':')[0],
-        password: databaseURL.userInfo.split(':')[1],
+        username: userInfo.isNotEmpty ? userInfo[0] : '',
+        password: userInfo.length > 1 ? userInfo[1] : '',
         useSSL: databaseURL.queryParameters['sslmode'] == 'require',
       );
 
+      schema = databaseURL.queryParameters['schema'] ?? 'public';
+
       await conn.open();
+
+      if (schema != 'public') {
+        final result = await conn.query(
+          'SELECT exists(SELECT schema_name FROM information_schema.schemata WHERE schema_name = @schema)',
+          substitutionValues: {
+            'schema': schema,
+          },
+        );
+
+        final [bool exists] = result.first;
+
+        if (!exists && userInfo.isNotEmpty) {
+          stdout.writeln('Schema $schema does not exists, creating...');
+
+          await conn.execute('CREATE SCHEMA $schema AUTHORIZATION ${userInfo.isNotEmpty ? userInfo[0] : ''};');
+        }
+
+        stdout.writeln('Set search_path to $schema...');
+
+        await conn.execute('SET search_path TO $schema;');
+      }
 
       await conn.execute(lastVersion);
 
@@ -97,10 +118,10 @@ class DSQLGen {
       final tableName = match.group(2) ?? '';
       final content = match.group(3) ?? '';
 
-      entityMetadatas.add(_getEntityMetadata(entityName, tableName, content));
+      entityMetadatas.add(_getEntityMetadata(entityName, '$schema.$tableName', content));
     }
 
-    final content = _generateDSQLClasses(entityMetadatas);
+    final content = _generateDSQLClasses(entityMetadatas, schema);
 
     final outputDir = Directory(output ?? p.join(path, '..', 'lib', 'generated'));
 
@@ -117,10 +138,8 @@ class DSQLGen {
     exit(0);
   }
 
-  static String _generateDSQLClasses(List<EntityMetadata> metadatas) {
+  static String _generateDSQLClasses(List<EntityMetadata> metadatas, String schema) {
     final buffer = StringBuffer();
-
-    buffer.writeln('import \'dart:io\';');
 
     buffer.writeln('import \'package:dsql/dsql.dart\';');
 
@@ -152,75 +171,7 @@ class DSQLGen {
 
     buffer.writeln();
 
-    buffer.writeln('class DSQL {');
-
-    buffer.writeln('  late final PostgreSQLConnection _conn;');
-
-    buffer.writeln();
-
-    for (final metadata in metadatas) {
-      buffer.writeln('  late final ${metadata.repositoryName} _${DSQLUtils.toCamelCase(metadata.repositoryName)};');
-
-      buffer.writeln();
-
-      buffer.writeln('  ${metadata.repositoryName} get ${DSQLUtils.toCamelCase(metadata.repositoryName.replaceAll('Repository', ''))} => _${DSQLUtils.toCamelCase(metadata.repositoryName)};');
-    }
-
-    buffer.writeln();
-
-    buffer.writeln('  DSQL({required String postgresURL}) {');
-
-    buffer.writeln('''    final uri = Uri.parse(postgresURL);
-    final host = uri.host;
-    final port = uri.port;
-    final database = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
-    final userInfo = uri.userInfo.split(':');
-    final username = userInfo.isNotEmpty ? Uri.decodeComponent(userInfo[0]) : '';
-    final password = userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : '';
-
-    _conn = PostgreSQLConnection(
-      host,
-      port,
-      database,
-      username: username,
-      password: password,
-    );''');
-
-    buffer.writeln();
-
-    for (final metadata in metadatas) {
-      buffer.writeln('    _${DSQLUtils.toCamelCase(metadata.repositoryName)} = ${metadata.repositoryName}(_conn);');
-    }
-
-    buffer.writeln('  }');
-
-    buffer.writeln();
-
-    buffer.writeln('  Future<void> init() async {');
-
-    buffer.writeln('    await _conn.open();');
-
-    buffer.writeln('    final root = Directory.current;');
-
-    buffer.writeln('    final migrations = Directory(DSQLUtils.join(root.path, \'migrations\'));');
-
-    buffer.writeln('    final files = migrations.listSync().where((file) => file.statSync().type == FileSystemEntityType.file);');
-
-    buffer.writeln('    final versions = files.where((file) => RegExp(r\'^\\V[\\d]+\\_\\_(.*).sql\$\').hasMatch(DSQLUtils.basename(file.path))).toList();');
-
-    buffer.writeln('    for (final file in versions) {');
-
-    buffer.writeln('      final version = await File(file.path).readAsString();');
-
-    buffer.writeln('      await _conn.execute(version);');
-
-    buffer.writeln('    }');
-
-    buffer.writeln('  }');
-
-    buffer.writeln();
-
-    buffer.writeln('}');
+    buffer.writeln(_dsqlBuilder(metadatas, schema));
 
     return buffer.toString();
   }
@@ -254,7 +205,7 @@ class DSQLGen {
 
     final repositoryBuffer = StringBuffer();
 
-    repositoryBuffer.writeln(_repositoryBuilder(entityName, tableName, params));
+    repositoryBuffer.writeln(_repositoryBuilder2(entityName, tableName, params));
 
     return EntityMetadata(
       name: tableName,
@@ -315,7 +266,7 @@ class ${entity}Entity {
 
   @override
   String toString() {
-    return '${entity}Entity(${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: ${DSQLUtils.toCamelCase(e.name)}').join(', ')})';
+    return '${entity}Entity(${params.map((e) => '${DSQLUtils.toCamelCase(e.name)}: \$${DSQLUtils.toCamelCase(e.name)}').join(', ')})';
   }
 
   @override
@@ -333,9 +284,227 @@ class ${entity}Entity {
 }''';
 }
 
-String _repositoryBuilder(String entity, String table, List<_Param> params) {
+// String _repositoryBuilder(String entity, String table, List<_Param> params) {
+//   final requiredParams = params.where((e) => e.required && !e.nullable).toList();
+//   final primaryKey = params.any((e) => e.primaryKey) ? params.firstWhere((e) => e.primaryKey) : null;
+//   final rest = params.where((e) => !e.primaryKey).toList();
+
+//   return '''/// Repository for ${entity}Entity
+// class ${entity}Repository {
+//   final PostgreSQLConnection conn;
+
+//   const ${entity}Repository(this.conn);
+
+//   /// Creates a new [${entity}Entity] in database
+//   Future<${entity}Entity> create({${requiredParams.map((e) => 'required ${e.type} ${e.name}').join(', ')},}) async {
+//     try {
+//       final result = await conn.query(
+//         'INSERT INTO $table (${requiredParams.map((e) => DSQLUtils.toSnakeCase(e.name)).join(', ')}) VALUES (${requiredParams.map((e) => '@${e.name}').join(', ')}) RETURNING *',
+//         substitutionValues: {
+//           ${requiredParams.map((e) => '\'${e.name}\': ${e.name}').join(', ')},
+//         },
+//       );
+
+//       return ${entity}Entity.fromRow(result.first);
+//     } on PostgreSQLException catch (e) {
+//       throw Exception(e.message);
+//     } on Exception catch (e) {
+//       throw Exception(e);
+//     }
+//   }
+
+//   /// Returns a list of [${entity}Entity] from database
+//   Future<List<${entity}Entity>> findMany({
+//     ${params.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+//     ${entity}OrderBy? orderBy,
+//     int? limit,
+//     int? offset,
+//   }) async {
+//     try {
+//       final filters = <String, Filter>{
+//         ${params.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+//       };
+
+//       final orderByOffsetAndLimit = '\${orderBy != null ? 'ORDER BY \${orderBy.param} ' : ''}\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit' : ''}';
+
+//       PostgreSQLResult result;
+
+//       if (filters.isNotEmpty) {
+//         result = await conn.query(
+//           'SELECT * FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')}\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
+//           substitutionValues: {
+//             ...filters.map((k, v) => MapEntry(k, v.value)),
+//           },
+//         );
+//       } else {
+//         result = await conn.query('SELECT * FROM $table\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};');
+//       }
+
+//       return result.map(${entity}Entity.fromRow).toList();
+//     } on PostgreSQLException catch (e) {
+//       throw Exception(e.message);
+//     } on Exception catch (e) {
+//       throw Exception(e);
+//     }
+//   }
+
+//   /// Returns a single [${entity}Entity] from database if exists
+//   Future<${entity}Entity?> findOne(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name}' : ''}
+//   ${primaryKey != null ? '' : '{${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},}'}
+//   ) async {
+//     try {
+//       ${primaryKey != null ? '''final result = await conn.query(
+//         'SELECT * FROM $table WHERE ${primaryKey.name} = @${primaryKey.name};',
+//         substitutionValues: {
+//           '${primaryKey.name}': ${primaryKey.name},
+//         },
+//       );
+
+//       return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;''' : '''final filters = <String, Filter>{
+//         ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+//       };
+
+//       final result = await conn.query(
+//         'SELECT * FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')};',
+//         substitutionValues: {
+//           ...filters.map((k, v) => MapEntry(k, v.value)),
+//         },
+//       );
+
+//       return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;'''}
+//     } on PostgreSQLException catch (e) {
+//       throw Exception(e.message);
+//     } on Exception catch (e) {
+//       throw Exception(e);
+//     }
+//   }
+
+//   /// Updates a [${entity}Entity] in database
+//   Future<${entity}Entity> update(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name},' : ''}{
+//   ${primaryKey != null ? '' : '${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},'}
+//   ${rest.map((e) => '${e.type}? set${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+//   }) async {
+//     try {
+//       final valuesToUpdate = <String, dynamic>{
+//         ${rest.map((e) => 'if (set${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': set${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+//       };
+
+//        if (valuesToUpdate.isEmpty) {
+//         throw Exception('You must provide at least one value to update!');
+//       }
+
+//       ${primaryKey != null ? '''final result = await conn.query(
+//         'UPDATE $table SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE ${primaryKey.name} = @${primaryKey.name} RETURNING *;',
+//         substitutionValues: {
+//           '${primaryKey.name}': ${primaryKey.name},
+//           ...valuesToUpdate,
+//         },
+//       );
+
+//       return ${entity}Entity.fromRow(result.first);''' : '''final filters = <String, Filter>{
+//         ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+//       };
+
+//       final result = await conn.query(
+//         'UPDATE ${entity}Entity SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
+//         substitutionValues: {
+//           ...filters.map((k, v) => MapEntry(k, v.value)),
+//           ...valuesToUpdate,
+//         },
+//       );
+
+//       return ${entity}Entity.fromRow(result.first);'''}
+//     } on PostgreSQLException catch (e) {
+//       throw Exception(e.message);
+//     } on Exception catch (e) {
+//       throw Exception(e);
+//     }
+//   }
+
+//   /// Deletes a [${entity}Entity] from database
+//   Future<${entity}Entity?> delete(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name}' : ''}
+//   ${primaryKey != null ? '' : '{${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},}'}
+//   ) async {
+//     try {
+//       ${primaryKey != null ? '''final result = await conn.query(
+//         'DELETE FROM $table WHERE ${primaryKey.name} = @${primaryKey.name} RETURNING *;',
+//         substitutionValues: {
+//           '${primaryKey.name}': ${primaryKey.name},
+//         },
+//       );
+
+//       if (result.isEmpty) {
+//         return null;
+//       }
+
+//       return ${entity}Entity.fromRow(result.first);''' : '''final filters = <String, Filter>{
+//         ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+//       };
+
+//       final result = await conn.query(
+//        'DELETE FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
+//         substitutionValues: {
+//           ...filters.map((k, v) => MapEntry(k, v.value)),
+//         },
+//       );
+
+//       if (result.isEmpty) {
+//         return null;
+//       }
+
+//       return ${entity}Entity.fromRow(result.first);'''}
+//     } on PostgreSQLException catch (e) {
+//       throw Exception(e.message);
+//     } on Exception catch (e) {
+//       throw Exception(e);
+//     }
+//   }
+// }
+
+// /// Options for sorting when fetching [${entity}Entity's] from database
+// enum ${entity}OrderBy {
+//     ${params.map((e) => '${e.name}Asc(\'${e.name.toSnakeCase()} ASC\'),\n${e.name}Desc(\'${e.name.toSnakeCase()} DESC\')').join(', ')};
+
+//     final String param;
+
+//     const ${entity}OrderBy(this.param);
+//   }''';
+// }
+
+String _dsqlBuilder(List<EntityMetadata> metadatas, String schema) {
+  return '''class DSQL {
+    late final PostgreSQLConnection _conn;
+
+    ${metadatas.map((e) => 'late final ${DSQLUtils.toPascalCase(e.repositoryName)} _${DSQLUtils.toCamelCase(e.repositoryName)};\n').join('\n')}
+
+    ${metadatas.map((e) => '${DSQLUtils.toPascalCase(e.repositoryName)} get ${DSQLUtils.toCamelCase(e.entityName.replaceAll('Entity', ''))} => _${DSQLUtils.toCamelCase(e.repositoryName)};\n').join('\n')}
+
+    DSQL({required String databaseURL}) {
+      final uri = Uri.parse(databaseURL);
+      final userInfo = uri.userInfo.split(':');
+
+      _conn = PostgreSQLConnection(
+        uri.host,
+        uri.port,
+        uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '',
+        username: userInfo.isNotEmpty ? Uri.decodeComponent(userInfo[0]) : '',
+        password: userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : '',
+        useSSL: uri.queryParameters['sslmode'] == 'require',
+      );
+
+      ${metadatas.map((e) => '_${DSQLUtils.toCamelCase(e.repositoryName)} = ${DSQLUtils.toPascalCase(e.repositoryName)}(_conn);').join('\n\n')}
+    }
+
+    Future<void> init() async {
+      await _conn.open();
+      await _conn.execute('SET search_path = ${[schema, 'public'].join(', ')};');
+      print('DSQL initialized!');
+    }
+  }''';
+}
+
+String _repositoryBuilder2(String entity, String table, List<_Param> params) {
   final requiredParams = params.where((e) => e.required && !e.nullable).toList();
-  final primaryKey = params.any((e) => e.primaryKey) ? params.firstWhere((e) => e.primaryKey) : null;
   final rest = params.where((e) => !e.primaryKey).toList();
 
   return '''/// Repository for ${entity}Entity
@@ -364,26 +533,20 @@ class ${entity}Repository {
 
   /// Returns a list of [${entity}Entity] from database
   Future<List<${entity}Entity>> findMany({
-    ${params.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-    ${entity}OrderBy? orderBy,
+    Where? where,
+    OrderBy? orderBy,
     int? limit,
     int? offset,
   }) async {
     try {
-      final filters = <String, Filter>{
-        ${params.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-      };
-
-      final orderByOffsetAndLimit = '\${orderBy != null ? 'ORDER BY \${orderBy.param} ' : ''}\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit' : ''}';
+      final orderByOffsetAndLimit = '\${orderBy != null ? '\${orderBy.queryString} ' : ''}\${offset != null ? 'OFFSET \$offset ' : ''}\${limit != null ? 'LIMIT \$limit' : ''}';
 
       PostgreSQLResult result;
 
-      if (filters.isNotEmpty) {
+      if (where != null) {
         result = await conn.query(
-          'SELECT * FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')}\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
-          substitutionValues: {
-            ...filters.map((k, v) => MapEntry(k, v.value)),
-          },
+          'SELECT * FROM $table WHERE \${where.queryString}\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};',
+          substitutionValues: where.substitutionValues,
         );
       } else {
         result = await conn.query('SELECT * FROM $table\${orderByOffsetAndLimit.isNotEmpty ? ' \$orderByOffsetAndLimit' : ''};');
@@ -398,29 +561,17 @@ class ${entity}Repository {
   }
 
   /// Returns a single [${entity}Entity] from database if exists
-  Future<${entity}Entity?> findOne(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name}' : ''}
-  ${primaryKey != null ? '' : '{${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},}'}
-  ) async {
+  Future<${entity}Entity?> findFirst({
+    required Where where,
+    OrderBy? orderBy,
+  }) async {
     try {
-      ${primaryKey != null ? '''final result = await conn.query(
-        'SELECT * FROM $table WHERE ${primaryKey.name} = @${primaryKey.name};',
-        substitutionValues: {
-          '${primaryKey.name}': ${primaryKey.name},
-        },
-      );
-
-      return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;''' : '''final filters = <String, Filter>{
-        ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-      };
-
       final result = await conn.query(
-        'SELECT * FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')};',
-        substitutionValues: {
-          ...filters.map((k, v) => MapEntry(k, v.value)),
-        },
+        'SELECT * FROM $table WHERE \${where.queryString}\${orderBy != null ? ' \${orderBy.queryString}' : ''} LIMIT 1;',
+        substitutionValues: where.substitutionValues,
       );
 
-      return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;'''}
+      return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
     } on Exception catch (e) {
@@ -429,40 +580,32 @@ class ${entity}Repository {
   }
   
   /// Updates a [${entity}Entity] in database
-  Future<${entity}Entity> update(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name},' : ''}{
-  ${primaryKey != null ? '' : '${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},'}
-  ${rest.map((e) => '${e.type}? set${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+  Future<${entity}Entity> update({
+    ${rest.map((e) => '${e.type}? ${DSQLUtils.toCamelCase(e.name)}').join(', ')},
+    required Where where,
   }) async {
     try {
       final valuesToUpdate = <String, dynamic>{
-        ${rest.map((e) => 'if (set${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': set${DSQLUtils.toPascalCase(e.name)}').join(', ')},
+        ${rest.map((e) => 'if (${DSQLUtils.toCamelCase(e.name)} != null) \'${e.name}\': ${DSQLUtils.toCamelCase(e.name)}').join(', ')},
       };
 
        if (valuesToUpdate.isEmpty) {
         throw Exception('You must provide at least one value to update!');
       }
 
-      ${primaryKey != null ? '''final result = await conn.query(
-        'UPDATE $table SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE ${primaryKey.name} = @${primaryKey.name} RETURNING *;',
-        substitutionValues: {
-          '${primaryKey.name}': ${primaryKey.name},
-          ...valuesToUpdate,
-        },
-      );
-
-      return ${entity}Entity.fromRow(result.first);''' : '''final filters = <String, Filter>{
-        ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-      };
-
       final result = await conn.query(
-        'UPDATE ${entity}Entity SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
+        'UPDATE $table SET \${valuesToUpdate.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} = @\${e.key}').join(', ')} WHERE \${where.queryString} RETURNING *;',
         substitutionValues: {
-          ...filters.map((k, v) => MapEntry(k, v.value)),
           ...valuesToUpdate,
+          ...where.substitutionValues,
         },
       );
 
-      return ${entity}Entity.fromRow(result.first);'''}
+      if (result.isEmpty) {
+        throw Exception('${entity}Entity not found!');
+      }
+
+      return ${entity}Entity.fromRow(result.first);
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
     } on Exception catch (e) {
@@ -471,43 +614,41 @@ class ${entity}Repository {
   }
 
   /// Deletes a [${entity}Entity] from database
-  Future<${entity}Entity> delete(${primaryKey != null ? '${primaryKey.type} ${primaryKey.name}' : ''}
-  ${primaryKey != null ? '' : '{${rest.map((e) => '${DSQLUtils.dartTypeToFilter(e.type)}? where${DSQLUtils.toPascalCase(e.name)}').join(', ')},}'}
-  ) async {
+  Future<${entity}Entity?> delete({
+    required Where where,
+    OrderBy? orderBy,
+  }) async {
     try {
-      ${primaryKey != null ? '''final result = await conn.query(
-        'DELETE FROM $table WHERE ${primaryKey.name} = @${primaryKey.name} RETURNING *;',
-        substitutionValues: {
-          '${primaryKey.name}': ${primaryKey.name},
-        },
-      );
-
-      return ${entity}Entity.fromRow(result.first);''' : '''final filters = <String, Filter>{
-        ${rest.map((e) => 'if (where${DSQLUtils.toPascalCase(e.name)} != null) \'${e.name}\': where${DSQLUtils.toPascalCase(e.name)}').join(', ')},
-      };
-
       final result = await conn.query(
-       'DELETE FROM $table WHERE \${filters.entries.map((e) => '\${DSQLUtils.toSnakeCase(e.key)} \${e.value.operator} @\${e.key}').join(' AND ')} RETURNING *;',
-        substitutionValues: {
-          ...filters.map((k, v) => MapEntry(k, v.value)),
-        },
+        'DELETE FROM $table WHERE \${where.queryString}\${orderBy != null ? ' \${orderBy.queryString}' : ''} RETURNING *;',
+        substitutionValues: where.substitutionValues,
       );
 
-      return ${entity}Entity.fromRow(result.first);'''}
+      return result.isNotEmpty ? ${entity}Entity.fromRow(result.first) : null;
     } on PostgreSQLException catch (e) {
       throw Exception(e.message);
     } on Exception catch (e) {
       throw Exception(e);
     }
   }
-}
 
-/// Options for sorting when fetching [${entity}Entity's] from database
-enum ${entity}OrderBy {
-    ${params.map((e) => '${e.name}Asc(\'${e.name.toSnakeCase()} ASC\'),\n${e.name}Desc(\'${e.name.toSnakeCase()} DESC\')').join(', ')};
+  Future<int> aggregate({
+    Where? where,
+  }) async {
+    try {
+      final result = await conn.query(
+        'SELECT COUNT(*) FROM $table\${where != null ? ' WHERE \${where.queryString}' : ''};',
+        substitutionValues: where?.substitutionValues,
+      );
 
-    final String param;
+      final [count] = result.first;
 
-    const ${entity}OrderBy(this.param);
-  }''';
+      return count;
+    } on PostgreSQLException catch (e) {
+      throw Exception(e.message);
+    } on Exception catch (e) {
+      throw Exception(e);
+    }
+  }
+}''';
 }
