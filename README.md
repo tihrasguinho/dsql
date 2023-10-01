@@ -12,13 +12,7 @@ dart pub global activate dsql
 
 ```yaml
 dependencies:
-  dsql: ^0.0.9+3
-```
-
-##### Create a file .env in the root of your project with database connection information.
-
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+  dsql: ^0.0.9+4
 ```
 
 ##### In the root, create a folder called migrations with your .sql file, like spring boot for example.
@@ -39,8 +33,14 @@ CREATE TABLE users (
 ##### Then you can run the migrations command with the following command
 
 ```
-dsql --generate or -g // Generate a dsql.dart file inside the lib/generated folder
-dsql -g -o /path/to/output // Generates in a custom path
+dsql --migrate or -m
+dsql -g -o /path/to/output
+```
+##### You will need to provide the database url to migrate and generate DSQL classes
+
+```shell
+DSQL CLI - Dart SQL Schema Generator
+Enter your postgresSQL database URL: postgresql://user:password@host:port/database
 ```
 
 ##### Next steps:

@@ -6,3 +6,7 @@
 
 - New way to filter from findMany, findFirst and update added.
 - New method aggregate added.
+
+## 0.0.9+4
+
+- New method to migrate and generate classes.
