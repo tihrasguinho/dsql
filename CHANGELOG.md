@@ -10,3 +10,7 @@
 ## 0.0.9+4
 
 - New method to migrate and generate classes.
+
+## 0.0.9+5
+
+- New operator added NOTEQ for where filters.

@@ -26,7 +26,7 @@ FutureOr<void> main(List<String> args) async {
     if (help) {
       return showHelp();
     } else if (version) {
-      return getVersion('0.0.9+4');
+      return getVersion('0.0.9+5');
     } else if (migrate) {
       await startMigration(output);
     } else {
@@ -61,8 +61,7 @@ void getVersion(String version) {
 }
 
 void showHelp() {
-  stdout.writeln(
-      '''
+  stdout.writeln('''
 DSQL CLI - Dart SQL Schema Generator
 
 Usage: dsql [options]
