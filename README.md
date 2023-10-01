@@ -12,19 +12,21 @@ dart pub global activate dsql
 
 ```yaml
 dependencies:
-  dsql: ^0.0.9+2
+  dsql: ^0.0.9+3
 ```
 
 ##### Create a file .env in the root of your project with database connection information.
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
 ```
 
 ##### In the root, create a folder called migrations with your .sql file, like spring boot for example.
 
 ```sql
 -- ./migrations/V1__create_users_table.sql
+
+-- Entity => User
 CREATE TABLE users (
   id SERIAL PRIMARY KEY DEFAULT nextval('users_id_seq'),
   name VARCHAR(255) NOT NULL,
