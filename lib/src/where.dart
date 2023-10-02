@@ -1,17 +1,31 @@
+import 'dsql_utils.dart';
+
 class Where {
-  final String column;
-  final Operator operator;
+  late final String column;
+  late final Operator operator;
 
   late final StringBuffer _buffer;
-  late final Map<String, dynamic> _substitutionValues;
+  final Map<String, dynamic> _substitutionValues = {};
 
   Where(this.column, this.operator) {
-    _validate();
-    _buffer = StringBuffer('$column ${operator.operator} @$column');
-    _substitutionValues = {column: operator.value};
+    _validate(column, operator);
+
+    final randomized = '${DSQLUtils.randomStr(11)}_$column';
+
+    _buffer = StringBuffer('$column ${operator.operator} @$randomized');
+    _substitutionValues.addAll({randomized: operator.value});
   }
 
-  void _validate() {
+  Where.emphasis(Where where)
+      : column = where.column,
+        operator = where.operator {
+    _validate(column, operator);
+
+    _buffer = StringBuffer('(${where._buffer.toString()})');
+    _substitutionValues.addAll({...where.substitutionValues});
+  }
+
+  void _validate(String column, Operator operator) {
     if (column.isEmpty) {
       throw Exception('Column must not be empty!');
     }
