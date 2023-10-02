@@ -14,3 +14,7 @@
 ## 0.0.9+5
 
 - New operator added NOTEQ for where filters.
+
+## 0.0.9+6
+
+- Improvement on Where class to avoid unwanted overrides

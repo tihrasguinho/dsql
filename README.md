@@ -12,7 +12,7 @@ dart pub global activate dsql
 
 ```yaml
 dependencies:
-  dsql: ^0.0.9+5
+  dsql: ^0.0.9+6
 ```
 
 ##### In the root, create a folder called migrations with your .sql file, like spring boot for example.
