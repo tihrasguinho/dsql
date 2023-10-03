@@ -26,7 +26,7 @@ FutureOr<void> main(List<String> args) async {
     if (help) {
       return showHelp();
     } else if (version) {
-      return getVersion('0.0.9+6');
+      return getVersion('0.0.9+7');
     } else if (migrate) {
       await startMigration(output);
     } else {

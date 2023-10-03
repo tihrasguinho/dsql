@@ -98,7 +98,7 @@ class DSQLGen {
       entityMetadatas.add(_getEntityMetadata(entityName, '$schema.$tableName', content));
     }
 
-    final content = _generateDSQLClasses(entityMetadatas, databaseURL);
+    final content = _generateDSQLClasses(entityMetadatas);
 
     final outputDir = Directory(output ?? p.join(path, '..', 'lib', 'generated'));
 
@@ -115,7 +115,7 @@ class DSQLGen {
     exit(0);
   }
 
-  static String _generateDSQLClasses(List<EntityMetadata> metadatas, Uri databaseURL) {
+  static String _generateDSQLClasses(List<EntityMetadata> metadatas) {
     final buffer = StringBuffer();
 
     buffer.writeln('import \'package:dsql/dsql.dart\';');
@@ -148,7 +148,7 @@ class DSQLGen {
 
     buffer.writeln();
 
-    buffer.writeln(_dsqlBuilder(metadatas, databaseURL));
+    buffer.writeln(_dsqlBuilder(metadatas));
 
     return buffer.toString();
   }
@@ -214,8 +214,7 @@ class _Param {
 }
 
 String _entityBuilder(String entity, List<_Param> params) {
-  return '''/// An entity created based on .sql file founded on migrations folder
-class ${entity}Entity {
+  return '''class ${entity}Entity {
 
   ${params.map((e) => 'final ${e.type}${e.nullable ? '?' : ''} ${DSQLUtils.toCamelCase(e.name)};').join('\n')}
 
@@ -265,8 +264,7 @@ String _repositoryBuilder(String entity, String table, List<_Param> params) {
   final requiredParams = params.where((e) => e.required && !e.nullable).toList();
   final rest = params.where((e) => !e.primaryKey).toList();
 
-  return '''/// Repository for ${entity}Entity
-class ${entity}Repository {
+  return '''class ${entity}Repository {
   final PostgreSQLConnection conn;
 
   const ${entity}Repository(this.conn);
@@ -411,9 +409,9 @@ class ${entity}Repository {
 }''';
 }
 
-String _dsqlBuilder(List<EntityMetadata> metadatas, Uri databaseURL) {
+String _dsqlBuilder(List<EntityMetadata> metadatas) {
   return '''class DSQL {
-    final Uri databaseURL = Uri.parse('${databaseURL.toString()}');
+    late final Uri databaseURL;
 
     late final PostgreSQLConnection _conn;
 
@@ -421,27 +419,27 @@ String _dsqlBuilder(List<EntityMetadata> metadatas, Uri databaseURL) {
 
     ${metadatas.map((e) => '${DSQLUtils.toPascalCase(e.repositoryName)} get ${DSQLUtils.toCamelCase(e.entityName.replaceAll('Entity', ''))} => _${DSQLUtils.toCamelCase(e.repositoryName)};\n').join('\n')}
 
-    DSQL._() {
-      final userInfo = databaseURL.userInfo.split(':');
+    DSQL({requierd String databaseURL}) {
+      this.databaseURL = Uri.parse(databaseURL);
+
+      final userInfo = this.databaseURL.userInfo.split(':');
 
       _conn = PostgreSQLConnection(
-        databaseURL.host,
-        databaseURL.port,
-        databaseURL.pathSegments.isNotEmpty ? databaseURL.pathSegments.first : '',
+        this.databaseURL.host,
+        this.databaseURL.port,
+        this.databaseURL.pathSegments.isNotEmpty ? databaseURL.pathSegments.first : '',
         username: userInfo.isNotEmpty ? Uri.decodeComponent(userInfo[0]) : '',
         password: userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : '',
-        useSSL: databaseURL.queryParameters['sslmode'] == 'require',
+        useSSL: this.databaseURL.queryParameters['sslmode'] == 'require',
       );
 
       ${metadatas.map((e) => '_${DSQLUtils.toCamelCase(e.repositoryName)} = ${DSQLUtils.toPascalCase(e.repositoryName)}(_conn);').join('\n\n')}
     }
 
-    static Future<DSQL> init() async {
-      final dsql = DSQL._();
-      await dsql._conn.open();
-      await dsql._conn.execute('SET search_path = \${dsql.databaseURL.queryParameters['schema'] ?? 'public'};');
+    static Future<void> init() async {
+      await _conn.open();
+      await _conn.execute('SET search_path = \${databaseURL.queryParameters['schema'] ?? 'public'};');
       print('DSQL initialized!');
-      return dsql;
     }
   }''';
 }

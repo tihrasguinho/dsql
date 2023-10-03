@@ -18,3 +18,7 @@
 ## 0.0.9+6
 
 - Improvement on Where class to avoid unwanted overrides
+
+## 0.0.9+7
+
+- The init method changed
