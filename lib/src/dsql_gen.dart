@@ -427,7 +427,7 @@ String _dsqlBuilder(List<EntityMetadata> metadatas) {
       _conn = PostgreSQLConnection(
         this.databaseURL.host,
         this.databaseURL.port,
-        this.databaseURL.pathSegments.isNotEmpty ? databaseURL.pathSegments.first : '',
+        this.databaseURL.pathSegments.isNotEmpty ? this.databaseURL.pathSegments.first : '',
         username: userInfo.isNotEmpty ? Uri.decodeComponent(userInfo[0]) : '',
         password: userInfo.length > 1 ? Uri.decodeComponent(userInfo[1]) : '',
         useSSL: this.databaseURL.queryParameters['sslmode'] == 'require',
@@ -436,7 +436,7 @@ String _dsqlBuilder(List<EntityMetadata> metadatas) {
       ${metadatas.map((e) => '_${DSQLUtils.toCamelCase(e.repositoryName)} = ${DSQLUtils.toPascalCase(e.repositoryName)}(_conn);').join('\n\n')}
     }
 
-    static Future<void> init() async {
+    Future<void> init() async {
       await _conn.open();
       await _conn.execute('SET search_path = \${databaseURL.queryParameters['schema'] ?? 'public'};');
       print('DSQL initialized!');

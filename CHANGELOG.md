@@ -22,3 +22,7 @@
 ## 0.0.9+7
 
 - The init method changed
+
+## 0.0.9+8
+
+- Bug fix on init method
