@@ -26,3 +26,7 @@
 ## 0.0.9+8
 
 - Bug fix on init method
+
+## 1.0.0+1
+
+- Refactor of the library (begin)
