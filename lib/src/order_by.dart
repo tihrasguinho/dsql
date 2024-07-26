@@ -1,16 +1,21 @@
-sealed class OrderBy {
+enum OrderByOption {
+  asc('ASC'),
+  desc('DESC');
+
+  final String direction;
+
+  const OrderByOption(this.direction);
+}
+
+class OrderBy {
   final String column;
-  final String operator;
+  final OrderByOption option;
 
-  OrderBy(this.column, this.operator);
+  const OrderBy._(this.column, this.option);
 
-  String get queryString => 'ORDER BY $column $operator';
-}
+  const OrderBy.asc(String column) : this._(column, OrderByOption.asc);
 
-final class ASC extends OrderBy {
-  ASC(String column) : super(column, 'ASC');
-}
+  const OrderBy.desc(String column) : this._(column, OrderByOption.desc);
 
-final class DESC extends OrderBy {
-  DESC(String column) : super(column, 'DESC');
+  String get sql => '\$column \${option.direction}';
 }
