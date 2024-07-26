@@ -9,8 +9,14 @@ void main(List<String> args) async {
   final parser = ArgParser()
     ..addOption('output', abbr: 'o')
     ..addOption('input', abbr: 'i')
-    ..addFlag('migrate', abbr: 'm', help: 'Migrate the database based on the sql files!', negatable: false)
-    ..addFlag('generate', abbr: 'g', help: 'Generate the dart files from the sql files!', negatable: false);
+    ..addFlag('migrate',
+        abbr: 'm',
+        help: 'Migrate the database based on the sql files!',
+        negatable: false)
+    ..addFlag('generate',
+        abbr: 'g',
+        help: 'Generate the dart files from the sql files!',
+        negatable: false);
 
   final results = parser.parse(args);
 
@@ -42,7 +48,8 @@ void main(List<String> args) async {
     while (true) {
       stdout.writeln('Welcome to the DSQL migration tool!');
       stdout.writeln();
-      stdout.writeln('This tool will help you to migrate your database using DSQL.');
+      stdout.writeln(
+          'This tool will help you to migrate your database using DSQL.');
       stdout.writeln();
       stdout.write('Press ENTER to continue...');
       stdin.readLineSync();
@@ -57,7 +64,9 @@ void main(List<String> args) async {
       final uri = Uri.parse(url);
       final host = uri.host;
       final port = uri.hasPort ? uri.port : 5432;
-      if (!uri.hasAuthority || uri.userInfo.isEmpty || uri.pathSegments.isEmpty) {
+      if (!uri.hasAuthority ||
+          uri.userInfo.isEmpty ||
+          uri.pathSegments.isEmpty) {
         _showUriError();
         continue;
       }
@@ -70,7 +79,9 @@ void main(List<String> args) async {
         _showOutputError(p.relative(input.path, from: Directory.current.path));
         exit(0);
       }
-      final files = input.listSync(recursive: true).where((f) => p.extension(f.path) == '.sql');
+      final files = input
+          .listSync(recursive: true)
+          .where((f) => p.extension(f.path) == '.sql');
       if (files.isEmpty) {
         _showFilesError(p.relative(input.path, from: Directory.current.path));
         exit(0);
@@ -95,10 +106,12 @@ void main(List<String> args) async {
             password: password,
             port: port,
           ),
-          settings: ConnectionSettings(sslMode: ssl ? SslMode.require : SslMode.disable),
+          settings: ConnectionSettings(
+              sslMode: ssl ? SslMode.require : SslMode.disable),
         );
 
-        final migrations = files.map((file) => File(file.path).readAsStringSync());
+        final migrations =
+            files.map((file) => File(file.path).readAsStringSync());
 
         stdout.writeln('Migrating database...');
 
@@ -131,7 +144,8 @@ void main(List<String> args) async {
     stdout.writeln('Generating dart files...');
     stdout.writeln();
     _generateDartFiles(input, output);
-    stdout.writeln('Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
+    stdout.writeln(
+        'Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
     stdout.writeln();
     stdout.write('Press ENTER to exit...');
     stdin.readLineSync();
@@ -162,44 +176,28 @@ void _generateDartFiles(Directory input, Directory output) {
 
     final content = file.readAsLinesSync().join('\n');
 
-    final regex = RegExp(r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
+    final regex = RegExp(
+        r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
 
     matches.addAll(regex.allMatches(content));
   }
 
   entitiesBuffer.writeln(_entitiesBuilder(matches));
 
-  queriesBuffer.writeln(_queriesBuilder(matches));
+  queriesBuffer.writeln(_dsqlBuilder(matches));
 
   final entities = File(p.join(output.path, 'entities.dart'));
 
-  final queries = File(p.join(output.path, 'queries.dart'));
-
-  final where = File(p.join(output.path, 'where.dart'));
-
-  final result = File(p.join(output.path, 'result.dart'));
-
-  final order = File(p.join(output.path, 'order.dart'));
+  final dsql = File(p.join(output.path, 'dsql.dart'));
 
   if (!entities.existsSync()) entities.createSync(recursive: true);
 
-  entities.writeAsStringSync(_entitiesImportsBuilder(entitiesBuffer.toString()));
+  entities
+      .writeAsStringSync(_entitiesImportsBuilder(entitiesBuffer.toString()));
 
-  if (!queries.existsSync()) queries.createSync(recursive: true);
+  if (!dsql.existsSync()) dsql.createSync(recursive: true);
 
-  queries.writeAsStringSync(_queriesImportsBuilder(queriesBuffer.toString()));
-
-  if (!where.existsSync()) where.createSync(recursive: true);
-
-  where.writeAsStringSync(_whereBuilder());
-
-  if (!result.existsSync()) result.createSync(recursive: true);
-
-  result.writeAsStringSync(_resultBuilder());
-
-  if (!order.existsSync()) order.createSync(recursive: true);
-
-  order.writeAsStringSync(_orderByBuilder());
+  dsql.writeAsStringSync(_dsqlImportsBuilder(queriesBuffer.toString()));
 
   _format(output);
 }
@@ -217,7 +215,13 @@ Type _fieldType(String col) {
 
   return switch (sql) {
     'TEXT' || 'UUID' || 'CHAR' => String,
-    'SMALLINT' || 'INTEGER' || 'BIGINT' || 'SERIAL' || 'BIGSERIAL' || 'SMALLSERIAL' => int,
+    'SMALLINT' ||
+    'INTEGER' ||
+    'BIGINT' ||
+    'SERIAL' ||
+    'BIGSERIAL' ||
+    'SMALLSERIAL' =>
+      int,
     'REAL' || 'DECIMAL' || 'NUMERIC' || 'DOUBLE' => double,
     'BOOLEAN' => bool,
     'TIMESTAMP' || 'TIMESTAMPTZ' || 'DATE' || 'TIME' => DateTime,
@@ -226,14 +230,16 @@ Type _fieldType(String col) {
 }
 
 bool _isRequired(String col) {
-  if (col.toUpperCase().contains('DEFAULT') || !col.toUpperCase().contains('NOT NULL')) {
+  if (col.toUpperCase().contains('DEFAULT') ||
+      !col.toUpperCase().contains('NOT NULL')) {
     return false;
   }
   return true;
 }
 
 bool _isNullable(String col) {
-  return !col.toUpperCase().contains('NOT NULL') && !col.toUpperCase().contains('PRIMARY KEY');
+  return !col.toUpperCase().contains('NOT NULL') &&
+      !col.toUpperCase().contains('PRIMARY KEY');
 }
 
 bool _isPrimaryKey(String col) {
@@ -245,7 +251,9 @@ bool _hasUniqueKey(List<String> cols) {
 }
 
 Map<String, Type> _getUniqueKeysMapped(List<String> cols) {
-  return Map.fromEntries(cols.where((col) => col.toUpperCase().contains('UNIQUE')).map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
+  return Map.fromEntries(cols
+      .where((col) => col.toUpperCase().contains('UNIQUE'))
+      .map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
 }
 
 bool _hasPrimaryKey(List<String> cols) {
@@ -260,40 +268,90 @@ Type _getPkType(List<String> cols) {
   return _fieldType(cols.firstWhere(_isPrimaryKey));
 }
 
-String _queriesBuilder(Iterable<RegExpMatch> matches) {
+String _dsqlBuilder(Iterable<RegExpMatch> matches) {
   final queries = <String>[];
 
-  queries.add('''class Queries {
+  queries.add('''class DSQL {
 ${matches.map(
     (match) {
-      final query = '${match.group(1)!.substring(0, match.group(1)!.length - 6)}Query';
-      final name = match.group(2)!.startsWith('tb_') ? match.group(2)!.substring(3) : match.group(2)!;
+      final reopsitory =
+          '${match.group(1)!.substring(0, match.group(1)!.length - 6)}Repository';
+      final name = match.group(2)!.startsWith('tb_')
+          ? match.group(2)!.substring(3)
+          : match.group(2)!;
 
-      return '  late final $query $name;';
+      return '  late final $reopsitory ${_tryToPluralize(name)};';
     },
   ).join('\n')}
 
-  Queries(Connection conn, {bool verbose = false}) {
+  DSQL._(Connection conn, {bool verbose = false}) {
 ${matches.map(
     (match) {
-      final query = '${match.group(1)!.substring(0, match.group(1)!.length - 6)}Query';
-      final name = match.group(2)!.startsWith('tb_') ? match.group(2)!.substring(3) : match.group(2)!;
+      final repository =
+          '${match.group(1)!.substring(0, match.group(1)!.length - 6)}Repository';
+      final name = match.group(2)!.startsWith('tb_')
+          ? match.group(2)!.substring(3)
+          : match.group(2)!;
 
-      return '    $name = $query(conn, verbose: verbose);';
+      return '    ${_tryToPluralize(name)} = $repository(conn, verbose: verbose);';
     },
   ).join('\n')}
+  }
+
+  static Future<DSQL> open(String databaseURL, {bool verbose = false}) async {
+    final uri = Uri.parse(databaseURL);
+    final host = uri.host;
+    final port = uri.hasPort ? uri.port : 5432;
+    final username = switch (uri.hasAuthority && uri.userInfo.isNotEmpty) {
+      false => null,
+      true => uri.userInfo.split(':')[0],
+    };
+    final password = switch (uri.hasAuthority && uri.userInfo.isNotEmpty) {
+      false => null,
+      true => uri.userInfo.split(':')[1],
+    };
+    final database = switch (uri.pathSegments.isNotEmpty) {
+      true => uri.pathSegments.first,
+      false => throw Exception('Database name is required!'),
+    };
+    final sslMode = switch (uri.queryParameters['sslmode']) {
+      'require' => SslMode.require,
+      'verify-full' => SslMode.verifyFull,
+      'disable' => SslMode.disable,
+      _ => SslMode.disable,
+    };
+    final conn = await Connection.open(
+        Endpoint(
+          host: host,
+          port: port,
+          username: username,
+          password: password,
+          database: database,
+        ),
+        settings: ConnectionSettings(
+          sslMode: sslMode,
+        ),
+    );
+
+    return DSQL._(conn, verbose: verbose);
   }
 }''');
 
   for (final match in matches) {
     final entity = match.group(1)!;
     final table = match.group(2)!;
-    final columns = match.group(3)!.split('\n').where((l) => l.isNotEmpty).map((l) => l.trim()).toList();
-    final content = '''class ${entity.substring(0, entity.length - 6)}Query {
+    final columns = match
+        .group(3)!
+        .split('\n')
+        .where((l) => l.isNotEmpty)
+        .map((l) => l.trim())
+        .toList();
+    final content =
+        '''class ${entity.substring(0, entity.length - 6)}Repository {
   final Connection _conn;
   final bool verbose;
 
-  const ${entity.substring(0, entity.length - 6)}Query(this._conn, {this.verbose = false});
+  const ${entity.substring(0, entity.length - 6)}Repository(this._conn, {this.verbose = false});
 
   ${_insertOneBuilder(table, entity, columns)}
 
@@ -322,17 +380,14 @@ ${_deleteOneParamsBuilder(entity, columns)}
   return queries.join('\n\n');
 }
 
-String _queriesImportsBuilder(String content) {
+String _dsqlImportsBuilder(String content) {
   return '''// This file is generated by DSQL.
 // Do not modify it manually.
 
-import 'package:postgres/postgres.dart';
+import 'package:dsql/dsql.dart';
 import 'dart:convert';
 
-part 'where.dart';
-part 'result.dart';
 part 'entities.dart';
-part 'order.dart';
 
 $content
 ''';
@@ -344,17 +399,26 @@ String _entitiesBuilder(Iterable<RegExpMatch> matches) {
   for (final match in matches) {
     final buffer = StringBuffer();
     final entity = match.group(1)!;
-    final columns = match.group(3)!.split('\n').where((l) => l.isNotEmpty).map((l) => l.trim()).toList();
+    final columns = match
+        .group(3)!
+        .split('\n')
+        .where((l) => l.isNotEmpty)
+        .map((l) => l.trim())
+        .toList();
 
     buffer.writeln('class $entity {');
 
-    buffer.write(columns.map((c) => '  final ${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)};').join('\n'));
+    buffer.write(columns
+        .map((c) =>
+            '  final ${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)};')
+        .join('\n'));
 
     buffer.writeln();
 
     buffer.writeln();
 
-    buffer.writeln('  const $entity({\n${columns.map((c) => '    ${_isNullable(c) ? '' : 'required '}this.${_fieldName(c)},').join('\n')}\n  });');
+    buffer.writeln(
+        '  const $entity({\n${columns.map((c) => '    ${_isNullable(c) ? '' : 'required '}this.${_fieldName(c)},').join('\n')}\n  });');
 
     buffer.writeln();
 
@@ -392,7 +456,25 @@ ${columns.map((c) => '        ${_fieldName(c)}: map[\'${_fieldName(c).toSnakeCas
 
     buffer.writeln();
 
-    buffer.writeln('''  factory $entity.fromJson(String source) => $entity.fromMap(json.decode(source));''');
+    buffer.writeln(
+        '''  factory $entity.fromJson(String source) => $entity.fromMap(json.decode(source));''');
+
+    buffer.writeln();
+
+    buffer.writeln('''@override
+String toString() {
+  return '$entity(${columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)}').join(', ')})';
+}''');
+
+    buffer.writeln('''@override
+bool operator ==(Object other) {
+  if (identical(this, other)) return true;
+
+  return other is $entity && ${columns.map((c) => 'other.${_fieldName(c)} == ${_fieldName(c)}').join(' && ')};
+}''');
+
+    buffer.writeln('''@override
+int get hashCode => ${columns.map((c) => '${_fieldName(c)}.hashCode').join(' ^ ')};''');
 
     buffer.writeln('}');
 
@@ -585,7 +667,8 @@ String _findByPkBuilder(String table, String entity, List<String> columns) {
   };
 }
 
-String _findByUniqueKeyBuilder(String table, String entity, List<String> columns) {
+String _findByUniqueKeyBuilder(
+    String table, String entity, List<String> columns) {
   return switch (_hasUniqueKey(columns)) {
     false => '',
     true => _getUniqueKeysMapped(columns).entries.map(
@@ -761,135 +844,40 @@ String _entitiesImportsBuilder(String content) {
   return '''// This file is generated by DSQL.
 // Do not modify it manually.
 
-part of 'queries.dart';
+part of 'dsql.dart';
 
 $content
 ''';
 }
 
-String _whereBuilder() {
-  return '''// This file is generated by DSQL.
-// Do not modify it manually.
-
-part of 'queries.dart';
-
-class Where {
-  final String op;
-  final dynamic value;
-
-  const Where._(this.op, this.value);
-
-  const Where.eq(dynamic value) : this._('=', value);
-
-  const Where.neq(dynamic value) : this._('!=', value);
-
-  const Where.gt(dynamic value) : this._('>', value);
-
-  const Where.gte(dynamic value) : this._('>=', value);
-
-  const Where.lt(dynamic value) : this._('<', value);
-
-  const Where.lte(dynamic value) : this._('<=', value);
-
-  const Where.startsWith(String value, {bool ignoreCase = true})
-      : this._(ignoreCase ? 'ILIKE' : 'LIKE', '\$value%');
-
-  const Where.endsWith(String value, {bool ignoreCase = true})
-      : this._(ignoreCase ? 'ILIKE' : 'LIKE', '%\$value');
-
-  const Where.contains(String value, {bool ignoreCase = true})
-      : this._(ignoreCase ? 'ILIKE' : 'LIKE', '%\$value%');
-
-  String sql(String column) => '\$op @\$column';
-}
-''';
-}
-
-String _resultBuilder() {
-  return '''// This file is generated by DSQL.
-// Do not modify it manually.
-
-part of 'queries.dart';
-
-typedef AsyncResult<S extends Object?, E extends Object?>
-    = Future<Result<S, E>>;
-
-sealed class Result<S extends Object?, E extends Object?> {
-  final S? _success;
-  final E? _error;
-
-  const Result(this._success, this._error);
-
-  bool get isSuccess => _success != null;
-
-  S? getSuccessOrNull() => _success;
-
-  S getSuccessOrThrow() {
-    if (_success == null) throw Exception('Left value is null');
-
-    return _success;
+String _tryToPluralize(String word) {
+  if (word.endsWith('s')) {
+    return word;
+  } else if (word.endsWith('y')) {
+    return '${word.substring(0, word.length - 1)}ies';
+  } else if (word.endsWith('ch')) {
+    return '${word.substring(0, word.length - 2)}ches';
+  } else if (word.endsWith('f')) {
+    return '${word.substring(0, word.length - 1)}ves';
+  } else if (word.endsWith('fe')) {
+    return '${word.substring(0, word.length - 2)}ves';
+  } else if (word.endsWith('x')) {
+    return '${word.substring(0, word.length - 1)}xes';
+  } else if (word.endsWith('z')) {
+    return '${word.substring(0, word.length - 1)}zes';
+  } else if (word.endsWith('us')) {
+    return '${word.substring(0, word.length - 2)}i';
+  } else if (word.endsWith('ss')) {
+    return '${word.substring(0, word.length - 2)}es';
+  } else if (word.endsWith('sh')) {
+    return '${word.substring(0, word.length - 2)}es';
+  } else if (word.endsWith('o')) {
+    return '${word.substring(0, word.length - 1)}oes';
+  } else if (word.endsWith('er')) {
+    return '${word.substring(0, word.length - 2)}ers';
+  } else {
+    return word;
   }
-
-  S getSuccessOrElse(S Function() orElse) => _success ?? orElse();
-
-  bool get isError => _error != null;
-
-  E? getErrorOrNull() => _error;
-
-  E getErrorOrThrow() {
-    if (_error == null) throw Exception('Right value is null');
-
-    return _error;
-  }
-
-  E getErrorOrElse(E Function() orElse) => _error ?? orElse();
-
-  T when<T>(T Function(S success) onSuccess, T Function(E error) onError) {
-    if (isSuccess) {
-      return onSuccess(getSuccessOrThrow());
-    } else {
-      return onError(getErrorOrThrow());
-    }
-  }
-}
-
-final class Success<S extends Object?, E extends Object?> extends Result<S, E> {
-  Success(S success) : super(success, null);
-}
-
-final class Error<S extends Object?, E extends Object?> extends Result<S, E> {
-  Error(E error) : super(null, error);
-}
-''';
-}
-
-String _orderByBuilder() {
-  return '''// This file is generated by DSQL.
-// Do not modify it manually.
-
-part of 'queries.dart';
-
-enum OrderByOption {
-  asc('ASC'),
-  desc('DESC');
-
-  final String direction;
-
-  const OrderByOption(this.direction);
-}
-
-class OrderBy {
-  final String column;
-  final OrderByOption option;
-
-  const OrderBy._(this.column, this.option);
-
-  const OrderBy.asc(String column) : this._(column, OrderByOption.asc);
-
-  const OrderBy.desc(String column) : this._(column, OrderByOption.desc);
-
-  String get sql => '\$column \${option.direction}';
-}''';
 }
 
 void _format(Directory output) {
