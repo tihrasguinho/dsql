@@ -14,6 +14,10 @@ class UserEntity {
   final String? website;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<PostEntity> posts;
+  final List<LikeEntity> likes;
+  final List<FollowerEntity> followers;
+  final List<FollowerEntity> following;
 
   const UserEntity({
     required this.id,
@@ -26,6 +30,10 @@ class UserEntity {
     this.website,
     required this.createdAt,
     required this.updatedAt,
+    this.posts = const <PostEntity>[],
+    this.likes = const <LikeEntity>[],
+    this.followers = const <FollowerEntity>[],
+    this.following = const <FollowerEntity>[],
   });
 
   UserEntity copyWith({
@@ -39,6 +47,10 @@ class UserEntity {
     String? website,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<PostEntity>? posts,
+    List<LikeEntity>? likes,
+    List<FollowerEntity>? followers,
+    List<FollowerEntity>? following,
   }) {
     return UserEntity(
       id: id ?? this.id,
@@ -51,6 +63,10 @@ class UserEntity {
       website: website ?? this.website,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      posts: posts ?? this.posts,
+      likes: likes ?? this.likes,
+      followers: followers ?? this.followers,
+      following: following ?? this.following,
     );
   }
 
@@ -85,44 +101,6 @@ class UserEntity {
       updatedAt: map['updated_at'] as DateTime,
     );
   }
-
-  factory UserEntity.fromJson(String source) =>
-      UserEntity.fromMap(json.decode(source));
-
-  @override
-  String toString() {
-    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, website: $website, createdAt: $createdAt, updatedAt: $updatedAt)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-
-    return other is UserEntity &&
-        other.id == id &&
-        other.name == name &&
-        other.username == username &&
-        other.email == email &&
-        other.password == password &&
-        other.image == image &&
-        other.bio == bio &&
-        other.website == website &&
-        other.createdAt == createdAt &&
-        other.updatedAt == updatedAt;
-  }
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      username.hashCode ^
-      email.hashCode ^
-      password.hashCode ^
-      image.hashCode ^
-      bio.hashCode ^
-      website.hashCode ^
-      createdAt.hashCode ^
-      updatedAt.hashCode;
 }
 
 class PostEntity {
@@ -133,6 +111,8 @@ class PostEntity {
   final String ownerId;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<PostEntity> replies;
+  final List<LikeEntity> likes;
 
   const PostEntity({
     required this.id,
@@ -142,6 +122,8 @@ class PostEntity {
     required this.ownerId,
     required this.createdAt,
     required this.updatedAt,
+    this.replies = const <PostEntity>[],
+    this.likes = const <LikeEntity>[],
   });
 
   PostEntity copyWith({
@@ -152,6 +134,8 @@ class PostEntity {
     String? ownerId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<PostEntity>? replies,
+    List<LikeEntity>? likes,
   }) {
     return PostEntity(
       id: id ?? this.id,
@@ -161,6 +145,8 @@ class PostEntity {
       ownerId: ownerId ?? this.ownerId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      replies: replies ?? this.replies,
+      likes: likes ?? this.likes,
     );
   }
 
@@ -189,38 +175,6 @@ class PostEntity {
       updatedAt: map['updated_at'] as DateTime,
     );
   }
-
-  factory PostEntity.fromJson(String source) =>
-      PostEntity.fromMap(json.decode(source));
-
-  @override
-  String toString() {
-    return 'PostEntity(id: $id, postId: $postId, title: $title, body: $body, ownerId: $ownerId, createdAt: $createdAt, updatedAt: $updatedAt)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-
-    return other is PostEntity &&
-        other.id == id &&
-        other.postId == postId &&
-        other.title == title &&
-        other.body == body &&
-        other.ownerId == ownerId &&
-        other.createdAt == createdAt &&
-        other.updatedAt == updatedAt;
-  }
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      postId.hashCode ^
-      title.hashCode ^
-      body.hashCode ^
-      ownerId.hashCode ^
-      createdAt.hashCode ^
-      updatedAt.hashCode;
 }
 
 class LikeEntity {
@@ -269,27 +223,52 @@ class LikeEntity {
       createdAt: map['created_at'] as DateTime,
     );
   }
+}
 
-  factory LikeEntity.fromJson(String source) =>
-      LikeEntity.fromMap(json.decode(source));
+class FollowerEntity {
+  final String id;
+  final String followerId;
+  final String followingId;
+  final DateTime createdAt;
 
-  @override
-  String toString() {
-    return 'LikeEntity(id: $id, postId: $postId, userId: $userId, createdAt: $createdAt)';
+  const FollowerEntity({
+    required this.id,
+    required this.followerId,
+    required this.followingId,
+    required this.createdAt,
+  });
+
+  FollowerEntity copyWith({
+    String? id,
+    String? followerId,
+    String? followingId,
+    DateTime? createdAt,
+  }) {
+    return FollowerEntity(
+      id: id ?? this.id,
+      followerId: followerId ?? this.followerId,
+      followingId: followingId ?? this.followingId,
+      createdAt: createdAt ?? this.createdAt,
+    );
   }
 
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-
-    return other is LikeEntity &&
-        other.id == id &&
-        other.postId == postId &&
-        other.userId == userId &&
-        other.createdAt == createdAt;
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'follower_id': followerId,
+      'following_id': followingId,
+      'created_at': createdAt,
+    };
   }
 
-  @override
-  int get hashCode =>
-      id.hashCode ^ postId.hashCode ^ userId.hashCode ^ createdAt.hashCode;
+  String toJson() => json.encode(toMap());
+
+  factory FollowerEntity.fromMap(Map<String, dynamic> map) {
+    return FollowerEntity(
+      id: map['id'] as String,
+      followerId: map['follower_id'] as String,
+      followingId: map['following_id'] as String,
+      createdAt: map['created_at'] as DateTime,
+    );
+  }
 }

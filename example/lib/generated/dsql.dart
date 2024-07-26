@@ -7,14 +7,16 @@ import 'dart:convert';
 part 'entities.dart';
 
 class DSQL {
-  late final UserRepository users;
-  late final PostRepository posts;
-  late final LikeRepository likes;
+  late final UsersRepository users;
+  late final PostsRepository posts;
+  late final LikesRepository likes;
+  late final FollowersRepository followers;
 
   DSQL._(Connection conn, {bool verbose = false}) {
-    users = UserRepository(conn, verbose: verbose);
-    posts = PostRepository(conn, verbose: verbose);
-    likes = LikeRepository(conn, verbose: verbose);
+    users = UsersRepository(conn, verbose: verbose);
+    posts = PostsRepository(conn, verbose: verbose);
+    likes = LikesRepository(conn, verbose: verbose);
+    followers = FollowersRepository(conn, verbose: verbose);
   }
 
   static Future<DSQL> open(String databaseURL, {bool verbose = false}) async {
@@ -56,21 +58,23 @@ class DSQL {
   }
 }
 
-class UserRepository {
+class UsersRepository {
   final Connection _conn;
   final bool verbose;
 
-  const UserRepository(this._conn, {this.verbose = false});
+  const UsersRepository(this._conn, {this.verbose = false});
 
   AsyncResult<UserEntity, Exception> insertOne(
       InsertOneUserParams params) async {
     try {
+      final query =
+          r'INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(
-            r'SQL => INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;');
+        print('SQL => $query');
 
         print('PARAMS => ${params.indexedParams}');
 
@@ -79,7 +83,7 @@ class UserRepository {
       }
 
       final result = await _conn.execute(
-        r'INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;',
+        query,
         parameters: params.indexedParams,
       );
 
@@ -207,11 +211,13 @@ class UserRepository {
 
   AsyncResult<UserEntity, Exception> findByPK(String pk) async {
     try {
+      final query = r'SELECT * FROM tb_users WHERE id = $1 LIMIT 1;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(r'SQL => SELECT * FROM tb_users WHERE id = $1 LIMIT 1;');
+        print('SQL => $query');
 
         print('PARAMS => ${[pk]}');
 
@@ -220,7 +226,7 @@ class UserRepository {
       }
 
       final result = await _conn.execute(
-        r'SELECT * FROM tb_users WHERE id = $1 LIMIT 1;',
+        query,
         parameters: [pk],
       );
 
@@ -264,11 +270,13 @@ class UserRepository {
 
   AsyncResult<UserEntity, Exception> findByUsername(String unique) async {
     try {
+      final query = r'SELECT * FROM tb_users WHERE username = $1 LIMIT 1;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(r'SQL => SELECT * FROM tb_users WHERE username = $1 LIMIT 1;');
+        print('SQL => $query');
 
         print('PARAMS => ${[unique]}');
 
@@ -277,7 +285,7 @@ class UserRepository {
       }
 
       final result = await _conn.execute(
-        r'SELECT * FROM tb_users WHERE username = $1 LIMIT 1;',
+        query,
         parameters: [unique],
       );
 
@@ -321,11 +329,13 @@ class UserRepository {
 
   AsyncResult<UserEntity, Exception> findByEmail(String unique) async {
     try {
+      final query = r'SELECT * FROM tb_users WHERE email = $1 LIMIT 1;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(r'SQL => SELECT * FROM tb_users WHERE email = $1 LIMIT 1;');
+        print('SQL => $query');
 
         print('PARAMS => ${[unique]}');
 
@@ -334,7 +344,7 @@ class UserRepository {
       }
 
       final result = await _conn.execute(
-        r'SELECT * FROM tb_users WHERE email = $1 LIMIT 1;',
+        query,
         parameters: [unique],
       );
 
@@ -687,21 +697,23 @@ class DeleteOneUserParams {
       };
 }
 
-class PostRepository {
+class PostsRepository {
   final Connection _conn;
   final bool verbose;
 
-  const PostRepository(this._conn, {this.verbose = false});
+  const PostsRepository(this._conn, {this.verbose = false});
 
   AsyncResult<PostEntity, Exception> insertOne(
       InsertOnePostParams params) async {
     try {
+      final query =
+          r'INSERT INTO tb_posts (title, body, ownerId) VALUES ($1, $2, $3) RETURNING *;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(
-            r'SQL => INSERT INTO tb_posts (title, body, ownerId) VALUES ($1, $2, $3) RETURNING *;');
+        print('SQL => $query');
 
         print('PARAMS => ${params.indexedParams}');
 
@@ -710,7 +722,7 @@ class PostRepository {
       }
 
       final result = await _conn.execute(
-        r'INSERT INTO tb_posts (title, body, ownerId) VALUES ($1, $2, $3) RETURNING *;',
+        query,
         parameters: params.indexedParams,
       );
 
@@ -826,11 +838,13 @@ class PostRepository {
 
   AsyncResult<PostEntity, Exception> findByPK(String pk) async {
     try {
+      final query = r'SELECT * FROM tb_posts WHERE id = $1 LIMIT 1;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(r'SQL => SELECT * FROM tb_posts WHERE id = $1 LIMIT 1;');
+        print('SQL => $query');
 
         print('PARAMS => ${[pk]}');
 
@@ -839,7 +853,7 @@ class PostRepository {
       }
 
       final result = await _conn.execute(
-        r'SELECT * FROM tb_posts WHERE id = $1 LIMIT 1;',
+        query,
         parameters: [pk],
       );
 
@@ -1135,21 +1149,23 @@ class DeleteOnePostParams {
       };
 }
 
-class LikeRepository {
+class LikesRepository {
   final Connection _conn;
   final bool verbose;
 
-  const LikeRepository(this._conn, {this.verbose = false});
+  const LikesRepository(this._conn, {this.verbose = false});
 
   AsyncResult<LikeEntity, Exception> insertOne(
       InsertOneLikeParams params) async {
     try {
+      final query =
+          r'INSERT INTO tb_likes (postId, userId) VALUES ($1, $2) RETURNING *;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(
-            r'SQL => INSERT INTO tb_likes (postId, userId) VALUES ($1, $2) RETURNING *;');
+        print('SQL => $query');
 
         print('PARAMS => ${params.indexedParams}');
 
@@ -1158,7 +1174,7 @@ class LikeRepository {
       }
 
       final result = await _conn.execute(
-        r'INSERT INTO tb_likes (postId, userId) VALUES ($1, $2) RETURNING *;',
+        query,
         parameters: params.indexedParams,
       );
 
@@ -1262,11 +1278,13 @@ class LikeRepository {
 
   AsyncResult<LikeEntity, Exception> findByPK(String pk) async {
     try {
+      final query = r'SELECT * FROM tb_likes WHERE id = $1 LIMIT 1;';
+
       if (verbose) {
         print(
             '--------------------------------------------------------------------------------');
 
-        print(r'SQL => SELECT * FROM tb_likes WHERE id = $1 LIMIT 1;');
+        print('SQL => $query');
 
         print('PARAMS => ${[pk]}');
 
@@ -1275,7 +1293,7 @@ class LikeRepository {
       }
 
       final result = await _conn.execute(
-        r'SELECT * FROM tb_likes WHERE id = $1 LIMIT 1;',
+        query,
         parameters: [pk],
       );
 
@@ -1510,6 +1528,389 @@ class DeleteOneLikeParams {
         if (id != null) 'id': id!,
         if (postId != null) 'post_id': postId!,
         if (userId != null) 'user_id': userId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+}
+
+class FollowersRepository {
+  final Connection _conn;
+  final bool verbose;
+
+  const FollowersRepository(this._conn, {this.verbose = false});
+
+  AsyncResult<FollowerEntity, Exception> insertOne(
+      InsertOneFollowerParams params) async {
+    try {
+      final query =
+          r'INSERT INTO tb_followers (followerId, followingId) VALUES ($1, $2) RETURNING *;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${params.indexedParams}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: params.indexedParams,
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to insert data on table `tb_followers`!'));
+      }
+
+      final row = result.first;
+
+      final [
+        String id,
+        String followerId,
+        String followingId,
+        DateTime createdAt,
+      ] = row as List;
+
+      final entity = FollowerEntity(
+        id: id,
+        followerId: followerId,
+        followingId: followingId,
+        createdAt: createdAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<List<FollowerEntity>, Exception> findMany([
+    FindManyFollowerParams params = const FindManyFollowerParams(),
+  ]) async {
+    try {
+      final where = switch (params.wheres.isEmpty) {
+        true => '',
+        false =>
+          ' WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')}',
+      };
+
+      final orderBy = switch (params.orderBy != null) {
+        true => ' ORDER BY ${params.orderBy?.sql}',
+        false => '',
+      };
+
+      final offset = switch (params.offset != null) {
+        true => ' OFFSET ${params.offset}',
+        false => '',
+      };
+
+      final limit = switch (params.limit != null) {
+        true => ' LIMIT ${params.limit}',
+        false => '',
+      };
+
+      final query = 'SELECT * FROM tb_followers$where$orderBy$offset$limit;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: params.wheres.values.map((w) => w.value).toList(),
+      );
+
+      final entities = List<FollowerEntity>.from(
+        result.map(
+          (row) {
+            final [
+              String id,
+              String followerId,
+              String followingId,
+              DateTime createdAt,
+            ] = row as List;
+
+            final entity = FollowerEntity(
+              id: id,
+              followerId: followerId,
+              followingId: followingId,
+              createdAt: createdAt,
+            );
+
+            return entity;
+          },
+        ),
+      );
+
+      return Success(entities);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<FollowerEntity, Exception> findByPK(String pk) async {
+    try {
+      final query = r'SELECT * FROM tb_followers WHERE id = $1 LIMIT 1;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${[pk]}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: [pk],
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to find data on table `tb_followers`!'));
+      }
+
+      final row = result.first;
+
+      final [
+        String id,
+        String followerId,
+        String followingId,
+        DateTime createdAt,
+      ] = row as List;
+
+      final entity = FollowerEntity(
+        id: id,
+        followerId: followerId,
+        followingId: followingId,
+        createdAt: createdAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<FollowerEntity, Exception> updateOne(
+      UpdateOneFollowerParams params) async {
+    try {
+      if (params.parameters.isEmpty) {
+        return Error(Exception('No data to update!'));
+      }
+
+      final query =
+          'UPDATE tb_followers SET ${List.generate(params.parameters.length, (i) => '${params.parameters.keys.elementAt(i)} = \$${i + 1}').join(', ')} WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${[
+          ...params.parameters.values,
+          ...params.wheres.values.map((w) => w.value)
+        ]}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: [
+          ...params.parameters.values,
+          ...params.wheres.values.map((w) => w.value)
+        ],
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to update data on table `tb_followers`!'));
+      }
+
+      final row = result.first;
+
+      final [
+        String id,
+        String followerId,
+        String followingId,
+        DateTime createdAt,
+      ] = row as List;
+
+      final entity = FollowerEntity(
+        id: id,
+        followerId: followerId,
+        followingId: followingId,
+        createdAt: createdAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<FollowerEntity, Exception> deleteOne(
+      DeleteOneFollowerParams params) async {
+    try {
+      if (params.wheres.isEmpty) {
+        return Error(Exception('No data to delete!'));
+      }
+
+      final query =
+          'DELETE FROM tb_followers WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')} RETURNING *;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: params.wheres.values.map((w) => w.value).toList(),
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to delete data on table `tb_followers`!'));
+      }
+
+      final row = result.first;
+
+      final [
+        String $id,
+        String $followerId,
+        String $followingId,
+        DateTime $createdAt,
+      ] = row as List;
+
+      final entity = FollowerEntity(
+        id: $id,
+        followerId: $followerId,
+        followingId: $followingId,
+        createdAt: $createdAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+}
+
+class InsertOneFollowerParams {
+  final String followerId;
+  final String followingId;
+
+  const InsertOneFollowerParams({
+    required this.followerId,
+    required this.followingId,
+  });
+
+  List get indexedParams => [
+        followerId,
+        followingId,
+      ];
+}
+
+class FindManyFollowerParams {
+  final Where? id;
+  final Where? followerId;
+  final Where? followingId;
+  final Where? createdAt;
+  final int? limit;
+  final int? offset;
+  final OrderBy? orderBy;
+
+  const FindManyFollowerParams({
+    this.id,
+    this.followerId,
+    this.followingId,
+    this.createdAt,
+    this.limit,
+    this.offset,
+    this.orderBy,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (followerId != null) 'follower_id': followerId!,
+        if (followingId != null) 'following_id': followingId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+}
+
+class UpdateOneFollowerParams {
+  final Where? whereId;
+  final Where? whereFollowerId;
+  final Where? whereFollowingId;
+  final Where? whereCreatedAt;
+  final String? followerId;
+  final String? followingId;
+  final DateTime? createdAt;
+
+  const UpdateOneFollowerParams({
+    this.whereId,
+    this.whereFollowerId,
+    this.whereFollowingId,
+    this.whereCreatedAt,
+    this.followerId,
+    this.followingId,
+    this.createdAt,
+  });
+
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (whereFollowerId != null) 'follower_id': whereFollowerId!,
+        if (whereFollowingId != null) 'following_id': whereFollowingId!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+      };
+
+  Map<String, dynamic> get parameters => {
+        if (followerId != null) 'follower_id': followerId,
+        if (followingId != null) 'following_id': followingId,
+        if (createdAt != null) 'created_at': createdAt,
+      };
+}
+
+class DeleteOneFollowerParams {
+  final Where? id;
+  final Where? followerId;
+  final Where? followingId;
+  final Where? createdAt;
+
+  const DeleteOneFollowerParams({
+    this.id,
+    this.followerId,
+    this.followingId,
+    this.createdAt,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (followerId != null) 'follower_id': followerId!,
+        if (followingId != null) 'following_id': followingId!,
         if (createdAt != null) 'created_at': createdAt!,
       };
 }

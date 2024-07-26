@@ -5,18 +5,15 @@ import 'package:path/path.dart' as p;
 import 'package:postgres/postgres.dart' hide Type;
 import 'package:strings/strings.dart';
 
+final regFk1 = RegExp(r'^CONSTRAINT\s(\w+)\sFOREIGN\sKEY\s\((\w+)\)\sREFERENCES\s(\w+)\s\((\w+)\)');
+final regFk2 = RegExp(r'REFERENCES\s(\w+)\s?\((\w+)\)');
+
 void main(List<String> args) async {
   final parser = ArgParser()
     ..addOption('output', abbr: 'o')
     ..addOption('input', abbr: 'i')
-    ..addFlag('migrate',
-        abbr: 'm',
-        help: 'Migrate the database based on the sql files!',
-        negatable: false)
-    ..addFlag('generate',
-        abbr: 'g',
-        help: 'Generate the dart files from the sql files!',
-        negatable: false);
+    ..addFlag('migrate', abbr: 'm', help: 'Migrate the database based on the sql files!', negatable: false)
+    ..addFlag('generate', abbr: 'g', help: 'Generate the dart files from the sql files!', negatable: false);
 
   final results = parser.parse(args);
 
@@ -48,8 +45,7 @@ void main(List<String> args) async {
     while (true) {
       stdout.writeln('Welcome to the DSQL migration tool!');
       stdout.writeln();
-      stdout.writeln(
-          'This tool will help you to migrate your database using DSQL.');
+      stdout.writeln('This tool will help you to migrate your database using DSQL.');
       stdout.writeln();
       stdout.write('Press ENTER to continue...');
       stdin.readLineSync();
@@ -64,9 +60,7 @@ void main(List<String> args) async {
       final uri = Uri.parse(url);
       final host = uri.host;
       final port = uri.hasPort ? uri.port : 5432;
-      if (!uri.hasAuthority ||
-          uri.userInfo.isEmpty ||
-          uri.pathSegments.isEmpty) {
+      if (!uri.hasAuthority || uri.userInfo.isEmpty || uri.pathSegments.isEmpty) {
         _showUriError();
         continue;
       }
@@ -79,9 +73,7 @@ void main(List<String> args) async {
         _showOutputError(p.relative(input.path, from: Directory.current.path));
         exit(0);
       }
-      final files = input
-          .listSync(recursive: true)
-          .where((f) => p.extension(f.path) == '.sql');
+      final files = input.listSync(recursive: true).where((f) => p.extension(f.path) == '.sql');
       if (files.isEmpty) {
         _showFilesError(p.relative(input.path, from: Directory.current.path));
         exit(0);
@@ -106,12 +98,10 @@ void main(List<String> args) async {
             password: password,
             port: port,
           ),
-          settings: ConnectionSettings(
-              sslMode: ssl ? SslMode.require : SslMode.disable),
+          settings: ConnectionSettings(sslMode: ssl ? SslMode.require : SslMode.disable),
         );
 
-        final migrations =
-            files.map((file) => File(file.path).readAsStringSync());
+        final migrations = files.map((file) => File(file.path).readAsStringSync());
 
         stdout.writeln('Migrating database...');
 
@@ -144,8 +134,7 @@ void main(List<String> args) async {
     stdout.writeln('Generating dart files...');
     stdout.writeln();
     _generateDartFiles(input, output);
-    stdout.writeln(
-        'Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
+    stdout.writeln('Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
     stdout.writeln();
     stdout.write('Press ENTER to exit...');
     stdin.readLineSync();
@@ -165,7 +154,7 @@ void _generateDartFiles(Directory input, Directory output) {
 
   final queriesBuffer = StringBuffer();
 
-  final matches = <RegExpMatch>[];
+  final tables = <_Table>[];
 
   for (final current in input.listSync(recursive: true)) {
     if (p.extension(current.path) != '.sql') continue;
@@ -176,15 +165,63 @@ void _generateDartFiles(Directory input, Directory output) {
 
     final content = file.readAsLinesSync().join('\n');
 
-    final regex = RegExp(
-        r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
+    final regex = RegExp(r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
 
-    matches.addAll(regex.allMatches(content));
+    tables.addAll(
+      regex.allMatches(content).map(
+            (match) => _Table(
+              entity: match.group(1)!,
+              name: match.group(2)!,
+              lines: match.group(3)!.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList(),
+            ),
+          ),
+    );
   }
 
-  entitiesBuffer.writeln(_entitiesBuilder(matches));
+  for (var i = 0; i < tables.length; i++) {
+    _Table table = tables[i];
 
-  queriesBuffer.writeln(_dsqlBuilder(matches));
+    for (final line in table.lines) {
+      final match1 = regFk1.firstMatch(line);
+      final match2 = regFk2.firstMatch(line);
+
+      if (match1 != null) {
+        final constraintRef = match1.group(1);
+        // final colOrigin = match.group(2)!;
+        final tableRef = match1.group(3)!;
+        final columnRef = match1.group(4)!;
+
+        final index = tables.indexWhere((t) => t.name == tableRef);
+        if (index < 0) continue;
+
+        tables[index] = tables[index].copyWith(
+          references: {
+            ...tables[index].references,
+            '${constraintRef ?? tableRef}:$columnRef': table,
+          },
+        );
+      } else if (match2 != null) {
+        // final colOrigin = match.group(1)!;
+        final tableRef = match2.group(1)!;
+        final columnRef = match2.group(2)!;
+
+        print(' ---> FOUND2: $tableRef $columnRef');
+
+        final index = tables.indexWhere((t) => t.name == tableRef);
+        if (index < 0) continue;
+        tables[index] = tables[index].copyWith(
+          references: {
+            ...tables[index].references,
+            '$tableRef:$columnRef': table,
+          },
+        );
+      }
+    }
+  }
+
+  entitiesBuffer.writeln(_entitiesBuilder(tables));
+
+  queriesBuffer.writeln(_dsqlBuilder(tables));
 
   final entities = File(p.join(output.path, 'entities.dart'));
 
@@ -192,8 +229,7 @@ void _generateDartFiles(Directory input, Directory output) {
 
   if (!entities.existsSync()) entities.createSync(recursive: true);
 
-  entities
-      .writeAsStringSync(_entitiesImportsBuilder(entitiesBuffer.toString()));
+  entities.writeAsStringSync(_entitiesImportsBuilder(entitiesBuffer.toString()));
 
   if (!dsql.existsSync()) dsql.createSync(recursive: true);
 
@@ -207,7 +243,7 @@ String _fieldName(String col) {
 }
 
 Type _fieldType(String col) {
-  final sql = col.split(' ')[1].toUpperCase();
+  final sql = col.split(' ')[1].toUpperCase().replaceAll(RegExp(r'[,.]'), '');
 
   if (sql.startsWith('VARCHAR')) {
     return String;
@@ -215,13 +251,7 @@ Type _fieldType(String col) {
 
   return switch (sql) {
     'TEXT' || 'UUID' || 'CHAR' => String,
-    'SMALLINT' ||
-    'INTEGER' ||
-    'BIGINT' ||
-    'SERIAL' ||
-    'BIGSERIAL' ||
-    'SMALLSERIAL' =>
-      int,
+    'SMALLINT' || 'INTEGER' || 'BIGINT' || 'SERIAL' || 'BIGSERIAL' || 'SMALLSERIAL' => int,
     'REAL' || 'DECIMAL' || 'NUMERIC' || 'DOUBLE' => double,
     'BOOLEAN' => bool,
     'TIMESTAMP' || 'TIMESTAMPTZ' || 'DATE' || 'TIME' => DateTime,
@@ -230,16 +260,14 @@ Type _fieldType(String col) {
 }
 
 bool _isRequired(String col) {
-  if (col.toUpperCase().contains('DEFAULT') ||
-      !col.toUpperCase().contains('NOT NULL')) {
+  if (col.toUpperCase().contains('DEFAULT') || !col.toUpperCase().contains('NOT NULL')) {
     return false;
   }
   return true;
 }
 
 bool _isNullable(String col) {
-  return !col.toUpperCase().contains('NOT NULL') &&
-      !col.toUpperCase().contains('PRIMARY KEY');
+  return !col.toUpperCase().contains('NOT NULL') && !col.toUpperCase().contains('PRIMARY KEY');
 }
 
 bool _isPrimaryKey(String col) {
@@ -251,9 +279,7 @@ bool _hasUniqueKey(List<String> cols) {
 }
 
 Map<String, Type> _getUniqueKeysMapped(List<String> cols) {
-  return Map.fromEntries(cols
-      .where((col) => col.toUpperCase().contains('UNIQUE'))
-      .map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
+  return Map.fromEntries(cols.where((col) => col.toUpperCase().contains('UNIQUE')).map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
 }
 
 bool _hasPrimaryKey(List<String> cols) {
@@ -268,32 +294,24 @@ Type _getPkType(List<String> cols) {
   return _fieldType(cols.firstWhere(_isPrimaryKey));
 }
 
-String _dsqlBuilder(Iterable<RegExpMatch> matches) {
+String _dsqlBuilder(List<_Table> tables) {
   final queries = <String>[];
 
   queries.add('''class DSQL {
-${matches.map(
-    (match) {
-      final reopsitory =
-          '${match.group(1)!.substring(0, match.group(1)!.length - 6)}Repository';
-      final name = match.group(2)!.startsWith('tb_')
-          ? match.group(2)!.substring(3)
-          : match.group(2)!;
+${tables.map(
+    (table) {
+      final name = table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
 
-      return '  late final $reopsitory ${_tryToPluralize(name)};';
+      return '  late final ${table.repository} ${_tryToPluralize(name)};';
     },
   ).join('\n')}
 
   DSQL._(Connection conn, {bool verbose = false}) {
-${matches.map(
-    (match) {
-      final repository =
-          '${match.group(1)!.substring(0, match.group(1)!.length - 6)}Repository';
-      final name = match.group(2)!.startsWith('tb_')
-          ? match.group(2)!.substring(3)
-          : match.group(2)!;
+${tables.map(
+    (table) {
+      final name = table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
 
-      return '    ${_tryToPluralize(name)} = $repository(conn, verbose: verbose);';
+      return '${_tryToPluralize(name)} = ${table.repository}(conn, verbose: verbose);';
     },
   ).join('\n')}
   }
@@ -337,42 +355,33 @@ ${matches.map(
   }
 }''');
 
-  for (final match in matches) {
-    final entity = match.group(1)!;
-    final table = match.group(2)!;
-    final columns = match
-        .group(3)!
-        .split('\n')
-        .where((l) => l.isNotEmpty)
-        .map((l) => l.trim())
-        .toList();
-    final content =
-        '''class ${entity.substring(0, entity.length - 6)}Repository {
+  for (final table in tables) {
+    final content = '''class ${table.repository} {
   final Connection _conn;
   final bool verbose;
 
-  const ${entity.substring(0, entity.length - 6)}Repository(this._conn, {this.verbose = false});
+  const ${table.repository}(this._conn, {this.verbose = false});
 
-  ${_insertOneBuilder(table, entity, columns)}
+  ${_insertOneBuilder(table)}
 
-  ${_findManyBuilder(table, entity, columns)}
+  ${_findManyBuilder(table)}
 
-  ${_findByPkBuilder(table, entity, columns)}
+  ${_findByPkBuilder(table)}
 
-  ${_findByUniqueKeyBuilder(table, entity, columns)}
+  ${_findByUniqueKeyBuilder(table)}
 
-  ${_updateOneBuilder(table, entity, columns)}
+  ${_updateOneBuilder(table)}
 
-  ${_deleteOneBuilder(table, entity, columns)}
+  ${_deleteOneBuilder(table)}
 }
 
-${_insertOneParamsBuilder(entity, columns)}
+${_insertOneParamsBuilder(table)}
 
-${_findManyParamsBuilder(entity, columns)}
+${_findManyParamsBuilder(table)}
 
-${_updateOneParamsBuilder(entity, columns)}
+${_updateOneParamsBuilder(table)}
 
-${_deleteOneParamsBuilder(entity, columns)}
+${_deleteOneParamsBuilder(table)}
 ''';
     queries.add(content);
   }
@@ -393,119 +402,81 @@ $content
 ''';
 }
 
-String _entitiesBuilder(Iterable<RegExpMatch> matches) {
+String _entitiesBuilder(List<_Table> tables) {
   final entities = <String>[];
 
-  for (final match in matches) {
-    final buffer = StringBuffer();
-    final entity = match.group(1)!;
-    final columns = match
-        .group(3)!
-        .split('\n')
-        .where((l) => l.isNotEmpty)
-        .map((l) => l.trim())
-        .toList();
+  for (final table in tables) {
+    final content = '''class ${table.entity} {
+    
+${table.columns.map((c) => 'final ${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)};').join('\n')}
+${table.references.entries.map((entry) {
+      return 'final List<${entry.value.entity}> ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))};';
+    }).join('\n')}
 
-    buffer.writeln('class $entity {');
+const ${table.entity}({
+  ${table.columns.map((c) => _isNullable(c) ? 'this.${_fieldName(c)},' : 'required this.${_fieldName(c)},').join('\n')}
+  ${table.references.entries.map((entry) {
+      return 'this.${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))} = const <${entry.value.entity}>[],';
+    }).join('\n')}
+});
 
-    buffer.write(columns
-        .map((c) =>
-            '  final ${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)};')
-        .join('\n'));
-
-    buffer.writeln();
-
-    buffer.writeln();
-
-    buffer.writeln(
-        '  const $entity({\n${columns.map((c) => '    ${_isNullable(c) ? '' : 'required '}this.${_fieldName(c)},').join('\n')}\n  });');
-
-    buffer.writeln();
-
-    buffer.write('''  $entity copyWith({
-${columns.map((c) => '    ${_fieldType(c)}? ${_fieldName(c)},').join('\n')}
+${table.entity} copyWith({
+${table.columns.map((c) => '${_fieldType(c)}? ${_fieldName(c)},').join('\n')}
+${table.references.entries.map((entry) => 'List<${entry.value.entity}>? ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))},').join('\n')}
   }) {
-    return $entity(
-${columns.map((c) => '      ${_fieldName(c)}: ${_fieldName(c)} ?? this.${_fieldName(c)},').join('\n')}
+    return ${table.entity}(
+${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)} ?? this.${_fieldName(c)},').join('\n')}
+${table.references.entries.map((entry) {
+      return '${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}: ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))} ?? this.${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))},';
+    }).join('\n')}
     );
-  }''');
+  }
 
-    buffer.writeln();
-
-    buffer.writeln();
-
-    buffer.writeln('''  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toMap() {
     return {
-${columns.map((c) => '      \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '      \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
     };
-  }''');
+  }
 
-    buffer.writeln();
+  String toJson() => json.encode(toMap());
 
-    buffer.writeln('''  String toJson() => json.encode(toMap());''');
-
-    buffer.writeln();
-
-    buffer.writeln('''  factory $entity.fromMap(Map<String, dynamic> map) {
-      return $entity(
-${columns.map((c) => '        ${_fieldName(c)}: map[\'${_fieldName(c).toSnakeCase()}\'] as ${_fieldType(c)},').join('\n')}
+  factory ${table.entity}.fromMap(Map<String, dynamic> map) {
+      return ${table.entity}(
+${table.columns.map((c) => '        ${_fieldName(c)}: map[\'${_fieldName(c).toSnakeCase()}\'] as ${_fieldType(c)},').join('\n')}
       );
-  }''');
+  }
+}''';
 
-    buffer.writeln();
-
-    buffer.writeln();
-
-    buffer.writeln(
-        '''  factory $entity.fromJson(String source) => $entity.fromMap(json.decode(source));''');
-
-    buffer.writeln();
-
-    buffer.writeln('''@override
-String toString() {
-  return '$entity(${columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)}').join(', ')})';
-}''');
-
-    buffer.writeln('''@override
-bool operator ==(Object other) {
-  if (identical(this, other)) return true;
-
-  return other is $entity && ${columns.map((c) => 'other.${_fieldName(c)} == ${_fieldName(c)}').join(' && ')};
-}''');
-
-    buffer.writeln('''@override
-int get hashCode => ${columns.map((c) => '${_fieldName(c)}.hashCode').join(' ^ ')};''');
-
-    buffer.writeln('}');
-
-    entities.add(buffer.toString());
+    entities.add(content);
   }
 
   return entities.join('\n\n');
 }
 
-String _insertOneParamsBuilder(String entity, List<String> columns) {
-  return '''class InsertOne${entity.substring(0, entity.length - 6)}Params {
-  ${columns.where((c) => _isRequired(c)).map((c) => 'final ${_fieldType(c)} ${_fieldName(c)};').join('\n')}
+String _insertOneParamsBuilder(_Table table) {
+  return '''class InsertOne${table.rawEntityName}Params {
+  ${table.columns.where((c) => _isRequired(c)).map((c) => 'final ${_fieldType(c)} ${_fieldName(c)};').join('\n')}
 
-  const InsertOne${entity.substring(0, entity.length - 6)}Params({
-  ${columns.where((c) => _isRequired(c)).map((c) => 'required this.${_fieldName(c)},').join('\n')}
+  const InsertOne${table.rawEntityName}Params({
+  ${table.columns.where((c) => _isRequired(c)).map((c) => 'required this.${_fieldName(c)},').join('\n')}
   });
 
   List get indexedParams => [
-  ${columns.where((c) => _isRequired(c)).map((c) => '${_fieldName(c)},').join('\n')}
+  ${table.columns.where((c) => _isRequired(c)).map((c) => '${_fieldName(c)},').join('\n')}
   ];
 }''';
 }
 
-String _insertOneBuilder(String table, String entity, List<String> columns) {
-  return '''AsyncResult<$entity, Exception> insertOne(InsertOne${entity.substring(0, entity.length - 6)}Params params) async {
+String _insertOneBuilder(_Table table) {
+  return '''AsyncResult<${table.entity}, Exception> insertOne(InsertOne${table.rawEntityName}Params params) async {
     try {
+
+      final query = r'INSERT INTO ${table.name} (${table.columns.where((c) => _isRequired(c)).map((c) => _fieldName(c)).join(', ')}) VALUES (${List.generate(table.columns.where((c) => _isRequired(c)).length, (i) => '\$${i + 1}').join(', ')}) RETURNING *;';
 
       if (verbose) {
         print('${'-' * 80}');
 
-        print(r'SQL => INSERT INTO $table (${columns.where((c) => _isRequired(c)).map((c) => _fieldName(c)).join(', ')}) VALUES (${List.generate(columns.where((c) => _isRequired(c)).length, (i) => '\$${i + 1}').join(', ')}) RETURNING *;');
+        print('SQL => \$query');
 
         print('PARAMS => \${params.indexedParams}');
 
@@ -513,22 +484,22 @@ String _insertOneBuilder(String table, String entity, List<String> columns) {
       }
 
       final result = await _conn.execute(
-          r'INSERT INTO $table (${columns.where((c) => _isRequired(c)).map((c) => _fieldName(c)).join(', ')}) VALUES (${List.generate(columns.where((c) => _isRequired(c)).length, (i) => '\$${i + 1}').join(', ')}) RETURNING *;',
+          query,
           parameters: params.indexedParams,
       );
 
       if (result.isEmpty) {
-        return Error(Exception('Fail to insert data on table `$table`!'));
+        return Error(Exception('Fail to insert data on table `${table.name}`!'));
       }
 
       final row = result.first;
 
       final [
-${columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
       ] = row as List;
 
-      final entity = $entity(
-${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+      final entity = ${table.entity}(
+${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
       );
 
       return Success(entity);
@@ -538,29 +509,29 @@ ${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
   }''';
 }
 
-String _findManyParamsBuilder(String entity, List<String> columns) {
-  return '''class FindMany${entity.substring(0, entity.length - 6)}Params {
-  ${columns.map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
+String _findManyParamsBuilder(_Table table) {
+  return '''class FindMany${table.rawEntityName}Params {
+  ${table.columns.map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
   final int? limit;
   final int? offset;
   final OrderBy? orderBy;
 
-  const FindMany${entity.substring(0, entity.length - 6)}Params({
-    ${columns.map((c) => 'this.${_fieldName(c)},').join('\n')}
+  const FindMany${table.rawEntityName}Params({
+    ${table.columns.map((c) => 'this.${_fieldName(c)},').join('\n')}
     this.limit,
     this.offset,
     this.orderBy,
   });
 
   Map<String, Where> get wheres => {
-    ${columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}!,').join('\n')}
+    ${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}!,').join('\n')}
   };
 }''';
 }
 
-String _findManyBuilder(String table, String entity, List<String> columns) {
-  return '''AsyncResult<List<$entity>, Exception> findMany([
-    FindMany${entity.substring(0, entity.length - 6)}Params params = const FindMany${entity.substring(0, entity.length - 6)}Params(),
+String _findManyBuilder(_Table table) {
+  return '''AsyncResult<List<${table.entity}>, Exception> findMany([
+    FindMany${table.rawEntityName}Params params = const FindMany${table.rawEntityName}Params(),
   ]) async {
     try {
       final where = switch (params.wheres.isEmpty) {
@@ -583,7 +554,7 @@ String _findManyBuilder(String table, String entity, List<String> columns) {
         false => '',
       };
 
-      final query = 'SELECT * FROM $table\$where\$orderBy\$offset\$limit;';
+      final query = 'SELECT * FROM ${table.name}\$where\$orderBy\$offset\$limit;';
 
       if (verbose) {
         print('${'-' * 80}');
@@ -600,15 +571,15 @@ String _findManyBuilder(String table, String entity, List<String> columns) {
         parameters: params.wheres.values.map((w) => w.value).toList(),
       );
 
-      final entities = List<$entity>.from(
+      final entities = List<${table.entity}>.from(
         result.map(
           (row) {
             final [
-${columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
             ] = row as List;
 
-            final entity = $entity(
-${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+            final entity = ${table.entity}(
+${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
             );
 
             return entity;
@@ -623,17 +594,19 @@ ${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
   }''';
 }
 
-String _findByPkBuilder(String table, String entity, List<String> columns) {
-  return switch (_hasPrimaryKey(columns)) {
+String _findByPkBuilder(_Table table) {
+  return switch (_hasPrimaryKey(table.columns)) {
     false => '',
-    true => '''AsyncResult<$entity, Exception> findByPK(
-    ${_getPkType(columns)} pk
+    true => '''AsyncResult<${table.entity}, Exception> findByPK(
+    ${_getPkType(table.columns)} pk
   ) async {
   try {
+    final query = r'SELECT * FROM ${table.name} WHERE ${_getPkName(table.columns)} = \$1 LIMIT 1;';
+
     if (verbose) {
       print('${'-' * 80}');
 
-      print(r'SQL => SELECT * FROM $table WHERE ${_getPkName(columns)} = \$1 LIMIT 1;');
+      print('SQL => \$query');
 
       print('PARAMS => \${[pk]}');
 
@@ -641,22 +614,22 @@ String _findByPkBuilder(String table, String entity, List<String> columns) {
     }
 
     final result = await _conn.execute(
-      r'SELECT * FROM $table WHERE ${_getPkName(columns)} = \$1 LIMIT 1;', 
+      query, 
       parameters: [pk],
     );
   
     if (result.isEmpty) {
-      return Error(Exception('Fail to find data on table `$table`!'));
+      return Error(Exception('Fail to find data on table `${table.name}`!'));
     }
   
     final row = result.first;
   
     final [
-      ${columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+      ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
     ] = row as List;
   
-    final entity = $entity(
-      ${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+    final entity = ${table.entity}(
+      ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
     );
   
     return Success(entity);
@@ -667,20 +640,21 @@ String _findByPkBuilder(String table, String entity, List<String> columns) {
   };
 }
 
-String _findByUniqueKeyBuilder(
-    String table, String entity, List<String> columns) {
-  return switch (_hasUniqueKey(columns)) {
+String _findByUniqueKeyBuilder(_Table table) {
+  return switch (_hasUniqueKey(table.columns)) {
     false => '',
-    true => _getUniqueKeysMapped(columns).entries.map(
+    true => _getUniqueKeysMapped(table.columns).entries.map(
         (uk) {
-          return '''AsyncResult<$entity, Exception> findBy${uk.key.toSnakeCase().toCamelCase()}(
+          return '''AsyncResult<${table.entity}, Exception> findBy${uk.key.toSnakeCase().toCamelCase()}(
     ${uk.value} unique
   ) async {
   try {
+    final query = r'SELECT * FROM ${table.name} WHERE ${uk.key.toSnakeCase()} = \$1 LIMIT 1;';
+
     if (verbose) {
       print('${'-' * 80}');
 
-      print(r'SQL => SELECT * FROM $table WHERE ${uk.key.toSnakeCase()} = \$1 LIMIT 1;');
+      print('SQL => \$query');
 
       print('PARAMS => \${[unique]}');
 
@@ -688,22 +662,22 @@ String _findByUniqueKeyBuilder(
     }
 
     final result = await _conn.execute(
-      r'SELECT * FROM $table WHERE ${uk.key.toSnakeCase()} = \$1 LIMIT 1;', 
+      query, 
       parameters: [unique],
     );
   
     if (result.isEmpty) {
-      return Error(Exception('Fail to find data on table `$table`!'));
+      return Error(Exception('Fail to find data on table `${table.name}`!'));
     }
   
     final row = result.first;
   
     final [
-      ${columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+      ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
     ] = row as List;
   
-    final entity = $entity(
-      ${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+    final entity = ${table.entity}(
+      ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
     );
   
     return Success(entity);
@@ -716,34 +690,34 @@ String _findByUniqueKeyBuilder(
   };
 }
 
-String _updateOneParamsBuilder(String entity, List<String> columns) {
-  return '''class UpdateOne${entity.substring(0, entity.length - 6)}Params {
-  ${columns.map((c) => 'final Where? where${_fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
-  ${columns.where((c) => !_isPrimaryKey(c)).map((c) => 'final ${_fieldType(c)}? ${_fieldName(c)};').join('\n')}
+String _updateOneParamsBuilder(_Table table) {
+  return '''class UpdateOne${table.rawEntityName}Params {
+  ${table.columns.map((c) => 'final Where? where${_fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
+  ${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => 'final ${_fieldType(c)}? ${_fieldName(c)};').join('\n')}
 
-  const UpdateOne${entity.substring(0, entity.length - 6)}Params({
-    ${columns.map((c) => 'this.where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
-    ${columns.where((c) => !_isPrimaryKey(c)).map((c) => 'this.${_fieldName(c)},').join('\n')}
+  const UpdateOne${table.rawEntityName}Params({
+    ${table.columns.map((c) => 'this.where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+    ${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => 'this.${_fieldName(c)},').join('\n')}
   });
 
   Map<String, Where> get wheres => {
-    ${columns.map((c) => 'if (where${_fieldName(c).toSnakeCase().toCamelCase()} != null) \'${_fieldName(c).toSnakeCase()}\': where${_fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
+    ${table.columns.map((c) => 'if (where${_fieldName(c).toSnakeCase().toCamelCase()} != null) \'${_fieldName(c).toSnakeCase()}\': where${_fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
   };
 
   Map<String, dynamic> get parameters => {
-    ${columns.where((c) => !_isPrimaryKey(c)).map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
+    ${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
   };
 }''';
 }
 
-String _updateOneBuilder(String table, String entity, List<String> columns) {
-  return '''AsyncResult<$entity, Exception> updateOne(UpdateOne${entity.substring(0, entity.length - 6)}Params params) async {
+String _updateOneBuilder(_Table table) {
+  return '''AsyncResult<${table.entity}, Exception> updateOne(UpdateOne${table.rawEntityName}Params params) async {
     try {
     if (params.parameters.isEmpty) {
       return Error(Exception('No data to update!'));
     }
 
-    final query = 'UPDATE $table SET \${List.generate(params.parameters.length, (i) => '\${params.parameters.keys.elementAt(i)} = \\\$\${i + 1}').join(', ')} WHERE \${List.generate(params.wheres.length, (i) => '\${params.wheres.keys.elementAt(i)} \${params.wheres.values.elementAt(i).op} \\\$\${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
+    final query = 'UPDATE ${table.name} SET \${List.generate(params.parameters.length, (i) => '\${params.parameters.keys.elementAt(i)} = \\\$\${i + 1}').join(', ')} WHERE \${List.generate(params.wheres.length, (i) => '\${params.wheres.keys.elementAt(i)} \${params.wheres.values.elementAt(i).op} \\\$\${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
 
     if (verbose) {
       print('${'-' * 80}');
@@ -761,17 +735,17 @@ String _updateOneBuilder(String table, String entity, List<String> columns) {
     );
     
     if (result.isEmpty) {
-      return Error(Exception('Fail to update data on table `$table`!'));
+      return Error(Exception('Fail to update data on table `${table.name}`!'));
     }
 
     final row = result.first;
 
     final [
-${columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
     ] = row as List;
 
-    final entity = $entity(
-${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+    final entity = ${table.entity}(
+${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
     );
 
     return Success(entity);
@@ -781,28 +755,28 @@ ${columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
   }''';
 }
 
-String _deleteOneParamsBuilder(String entity, List<String> columns) {
-  return '''class DeleteOne${entity.substring(0, entity.length - 6)}Params {
-  ${columns.map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
+String _deleteOneParamsBuilder(_Table table) {
+  return '''class DeleteOne${table.rawEntityName}Params {
+  ${table.columns.map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
 
-  const DeleteOne${entity.substring(0, entity.length - 6)}Params({
-  ${columns.map((c) => 'this.${_fieldName(c)},').join('\n')}
+  const DeleteOne${table.rawEntityName}Params({
+  ${table.columns.map((c) => 'this.${_fieldName(c)},').join('\n')}
   });
 
   Map<String, Where> get wheres => {
-  ${columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}!,').join('\n')}
+  ${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}!,').join('\n')}
   };
 }''';
 }
 
-String _deleteOneBuilder(String table, String entity, List<String> columns) {
-  return '''AsyncResult<$entity, Exception> deleteOne(DeleteOne${entity.substring(0, entity.length - 6)}Params params) async {
+String _deleteOneBuilder(_Table table) {
+  return '''AsyncResult<${table.entity}, Exception> deleteOne(DeleteOne${table.rawEntityName}Params params) async {
     try {
       if (params.wheres.isEmpty) {
         return Error(Exception('No data to delete!'));
       }
 
-      final query = 'DELETE FROM $table WHERE \${List.generate(params.wheres.length, (i) => '\${params.wheres.keys.elementAt(i)} \${params.wheres.values.elementAt(i).op} \\\$\${i + 1}').join(' AND ')} RETURNING *;';
+      final query = 'DELETE FROM ${table.name} WHERE \${List.generate(params.wheres.length, (i) => '\${params.wheres.keys.elementAt(i)} \${params.wheres.values.elementAt(i).op} \\\$\${i + 1}').join(' AND ')} RETURNING *;';
     
       if (verbose) {
         print('${'-' * 80}');
@@ -820,17 +794,17 @@ String _deleteOneBuilder(String table, String entity, List<String> columns) {
       );
       
       if (result.isEmpty) {
-        return Error(Exception('Fail to delete data on table `$table`!'));
+        return Error(Exception('Fail to delete data on table `${table.name}`!'));
       }
 
       final row = result.first;
 
       final [
-${columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
       ] = row as List;
 
-      final entity = $entity(
-${columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
+      final entity = ${table.entity}(
+${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
       );
 
       return Success(entity);
@@ -875,9 +849,25 @@ String _tryToPluralize(String word) {
     return '${word.substring(0, word.length - 1)}oes';
   } else if (word.endsWith('er')) {
     return '${word.substring(0, word.length - 2)}ers';
-  } else {
+  } else if (word.endsWith('ing') || word.endsWith('ed') || word.endsWith('ers')) {
     return word;
+  } else {
+    return '${word}s';
   }
+}
+
+String _constraintNameNormalizer(String constraint) {
+  String base = constraint;
+  if (base.toLowerCase().startsWith('tb_')) {
+    base = base.substring(3);
+  }
+  if (base.toLowerCase().startsWith('fk_')) {
+    base = base.substring(3);
+  }
+  if (base.toLowerCase().endsWith('_id')) {
+    base = base.substring(0, base.length - 3);
+  }
+  return base.toCamelCase(lower: true);
 }
 
 void _format(Directory output) {
@@ -945,3 +935,37 @@ void _showExceptionError(Exception ex) {
 }
 
 void _clearConsole() => stdout.write('\x1B[2J\x1B[0;0H');
+
+class _Table {
+  final String entity;
+  final String name;
+  final List<String> lines;
+  final Map<String, _Table> references;
+
+  const _Table({required this.entity, required this.name, required this.lines, this.references = const {}});
+
+  String get rawEntityName => entity.substring(0, entity.length - 6);
+
+  String get repository => '${_tryToPluralize(rawEntityName)}Repository';
+
+  List<String> get columns => lines.where((l) => !RegExp(r'^(CONSTRAINT|FOREIGN KEY)').hasMatch(l)).toList();
+
+  String get nameWithoutPrefixTB => switch (name.startsWith('tb_')) {
+        true => name.substring(3),
+        false => name,
+      };
+
+  _Table copyWith({
+    String? entity,
+    String? name,
+    List<String>? lines,
+    Map<String, _Table>? references,
+  }) {
+    return _Table(
+      entity: entity ?? this.entity,
+      name: name ?? this.name,
+      lines: lines ?? this.lines,
+      references: references ?? this.references,
+    );
+  }
+}

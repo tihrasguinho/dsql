@@ -1,4 +1,4 @@
-import 'lib/generated/dsql.dart';
+import 'package:example/generated/dsql.dart';
 
 void main() async {
   final dsql = await DSQL.open(
