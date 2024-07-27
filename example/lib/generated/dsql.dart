@@ -209,9 +209,122 @@ class UsersRepository {
     }
   }
 
-  AsyncResult<UserEntity, Exception> findByPK(String pk) async {
+  AsyncResult<UserEntity, Exception> findByPK(
+    String pk, {
+    bool includeUserposts = false,
+    bool includeUserlikes = false,
+    bool includeFollower = false,
+    bool includeFollowing = false,
+  }) async {
     try {
-      final query = r'SELECT * FROM tb_users WHERE id = $1 LIMIT 1;';
+      String query = r'SELECT * FROM tb_users WHERE id = $1 LIMIT 1;';
+
+      if (includeUserposts) {
+        query = r'''SELECT
+  u.id as u_users_id,
+  u.name as u_users_name,
+  u.username as u_users_username,
+  u.email as u_users_email,
+  u.password as u_users_password,
+  u.image as u_users_image,
+  u.bio as u_users_bio,
+  u.website as u_users_website,
+  u.created_at as u_users_created_at,
+  u.updated_at as u_users_updated_at,
+  p.id as p_posts_id2,
+  p.post_id as p_posts_post_id2,
+  p.title as p_posts_title2,
+  p.body as p_posts_body2,
+  p.owner_id as p_posts_owner_id2,
+  p.created_at as p_posts_created_at2,
+  p.updated_at as p_posts_updated_at2
+FROM
+  tb_users u
+JOIN
+  tb_posts p
+ON
+  u.id = p.owner_id
+WHERE
+  u.id = $1;''';
+      }
+
+      if (includeUserlikes) {
+        query = r'''SELECT
+  u.id as u_users_id,
+  u.name as u_users_name,
+  u.username as u_users_username,
+  u.email as u_users_email,
+  u.password as u_users_password,
+  u.image as u_users_image,
+  u.bio as u_users_bio,
+  u.website as u_users_website,
+  u.created_at as u_users_created_at,
+  u.updated_at as u_users_updated_at,
+  l.id as l_likes_id2,
+  l.post_id as l_likes_post_id2,
+  l.user_id as l_likes_user_id2,
+  l.created_at as l_likes_created_at2
+FROM
+  tb_users u
+JOIN
+  tb_likes l
+ON
+  u.id = l.user_id
+WHERE
+  u.id = $1;''';
+      }
+
+      if (includeFollower) {
+        query = r'''SELECT
+  u.id as u_users_id,
+  u.name as u_users_name,
+  u.username as u_users_username,
+  u.email as u_users_email,
+  u.password as u_users_password,
+  u.image as u_users_image,
+  u.bio as u_users_bio,
+  u.website as u_users_website,
+  u.created_at as u_users_created_at,
+  u.updated_at as u_users_updated_at,
+  f.id as f_followers_id2,
+  f.follower_id as f_followers_follower_id2,
+  f.following_id as f_followers_following_id2,
+  f.created_at as f_followers_created_at2
+FROM
+  tb_users u
+JOIN
+  tb_followers f
+ON
+  u.id = f.follower_id
+WHERE
+  u.id = $1;''';
+      }
+
+      if (includeFollowing) {
+        query = r'''SELECT
+  u.id as u_users_id,
+  u.name as u_users_name,
+  u.username as u_users_username,
+  u.email as u_users_email,
+  u.password as u_users_password,
+  u.image as u_users_image,
+  u.bio as u_users_bio,
+  u.website as u_users_website,
+  u.created_at as u_users_created_at,
+  u.updated_at as u_users_updated_at,
+  f.id as f_followers_id2,
+  f.follower_id as f_followers_follower_id2,
+  f.following_id as f_followers_following_id2,
+  f.created_at as f_followers_created_at2
+FROM
+  tb_users u
+JOIN
+  tb_followers f
+ON
+  u.id = f.following_id
+WHERE
+  u.id = $1;''';
+      }
 
       if (verbose) {
         print(
@@ -235,6 +348,216 @@ class UsersRepository {
       }
 
       final row = result.first;
+
+      if (includeUserposts) {
+        final [
+          String id,
+          String name,
+          String username,
+          String email,
+          String password,
+          String? image,
+          String? bio,
+          String? website,
+          DateTime createdAt,
+          DateTime updatedAt,
+          ...
+        ] = row as List;
+
+        final userPosts = result.map(
+          (r) {
+            final [
+              ...,
+              String id,
+              String? postId,
+              String title,
+              String body,
+              String ownerId,
+              DateTime createdAt,
+              DateTime updatedAt,
+            ] = r as List;
+
+            return PostEntity(
+              id: id,
+              postId: postId,
+              title: title,
+              body: body,
+              ownerId: ownerId,
+              createdAt: createdAt,
+              updatedAt: updatedAt,
+            );
+          },
+        ).toList();
+
+        final entity = UserEntity(
+          id: id,
+          name: name,
+          username: username,
+          email: email,
+          password: password,
+          image: image,
+          bio: bio,
+          website: website,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          userPosts: userPosts,
+        );
+
+        return Success(entity);
+      }
+
+      if (includeUserlikes) {
+        final [
+          String id,
+          String name,
+          String username,
+          String email,
+          String password,
+          String? image,
+          String? bio,
+          String? website,
+          DateTime createdAt,
+          DateTime updatedAt,
+          ...
+        ] = row as List;
+
+        final userLikes = result.map(
+          (r) {
+            final [
+              ...,
+              String id,
+              String postId,
+              String userId,
+              DateTime createdAt,
+            ] = r as List;
+
+            return LikeEntity(
+              id: id,
+              postId: postId,
+              userId: userId,
+              createdAt: createdAt,
+            );
+          },
+        ).toList();
+
+        final entity = UserEntity(
+          id: id,
+          name: name,
+          username: username,
+          email: email,
+          password: password,
+          image: image,
+          bio: bio,
+          website: website,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          userLikes: userLikes,
+        );
+
+        return Success(entity);
+      }
+
+      if (includeFollower) {
+        final [
+          String id,
+          String name,
+          String username,
+          String email,
+          String password,
+          String? image,
+          String? bio,
+          String? website,
+          DateTime createdAt,
+          DateTime updatedAt,
+          ...
+        ] = row as List;
+
+        final followers = result.map(
+          (r) {
+            final [
+              ...,
+              String id,
+              String followerId,
+              String followingId,
+              DateTime createdAt,
+            ] = r as List;
+
+            return FollowerEntity(
+              id: id,
+              followerId: followerId,
+              followingId: followingId,
+              createdAt: createdAt,
+            );
+          },
+        ).toList();
+
+        final entity = UserEntity(
+          id: id,
+          name: name,
+          username: username,
+          email: email,
+          password: password,
+          image: image,
+          bio: bio,
+          website: website,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          followers: followers,
+        );
+
+        return Success(entity);
+      }
+
+      if (includeFollowing) {
+        final [
+          String id,
+          String name,
+          String username,
+          String email,
+          String password,
+          String? image,
+          String? bio,
+          String? website,
+          DateTime createdAt,
+          DateTime updatedAt,
+          ...
+        ] = row as List;
+
+        final following = result.map(
+          (r) {
+            final [
+              ...,
+              String id,
+              String followerId,
+              String followingId,
+              DateTime createdAt,
+            ] = r as List;
+
+            return FollowerEntity(
+              id: id,
+              followerId: followerId,
+              followingId: followingId,
+              createdAt: createdAt,
+            );
+          },
+        ).toList();
+
+        final entity = UserEntity(
+          id: id,
+          name: name,
+          username: username,
+          email: email,
+          password: password,
+          image: image,
+          bio: bio,
+          website: website,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          following: following,
+        );
+
+        return Success(entity);
+      }
 
       final [
         String id,
@@ -555,6 +878,10 @@ class FindManyUserParams {
   final Where? website;
   final Where? createdAt;
   final Where? updatedAt;
+  final bool includeUserposts;
+  final bool includeUserlikes;
+  final bool includeFollower;
+  final bool includeFollowing;
   final int? limit;
   final int? offset;
   final OrderBy? orderBy;
@@ -570,6 +897,10 @@ class FindManyUserParams {
     this.website,
     this.createdAt,
     this.updatedAt,
+    this.includeUserposts = false,
+    this.includeUserlikes = false,
+    this.includeFollower = false,
+    this.includeFollowing = false,
     this.limit,
     this.offset,
     this.orderBy,
@@ -707,7 +1038,7 @@ class PostsRepository {
       InsertOnePostParams params) async {
     try {
       final query =
-          r'INSERT INTO tb_posts (title, body, ownerId) VALUES ($1, $2, $3) RETURNING *;';
+          r'INSERT INTO tb_posts (title, body, owner_id) VALUES ($1, $2, $3) RETURNING *;';
 
       if (verbose) {
         print(
@@ -836,9 +1167,62 @@ class PostsRepository {
     }
   }
 
-  AsyncResult<PostEntity, Exception> findByPK(String pk) async {
+  AsyncResult<PostEntity, Exception> findByPK(
+    String pk, {
+    bool includePostreplies = false,
+    bool includePostlikes = false,
+  }) async {
     try {
-      final query = r'SELECT * FROM tb_posts WHERE id = $1 LIMIT 1;';
+      String query = r'SELECT * FROM tb_posts WHERE id = $1 LIMIT 1;';
+
+      if (includePostreplies) {
+        query = r'''SELECT
+  p1.id as p1_posts_id,
+  p1.post_id as p1_posts_post_id,
+  p1.title as p1_posts_title,
+  p1.body as p1_posts_body,
+  p1.owner_id as p1_posts_owner_id,
+  p1.created_at as p1_posts_created_at,
+  p1.updated_at as p1_posts_updated_at,
+  p2.id as p2_posts_id2,
+  p2.post_id as p2_posts_post_id2,
+  p2.title as p2_posts_title2,
+  p2.body as p2_posts_body2,
+  p2.owner_id as p2_posts_owner_id2,
+  p2.created_at as p2_posts_created_at2,
+  p2.updated_at as p2_posts_updated_at2
+FROM
+  tb_posts p1
+JOIN
+  tb_posts p2
+ON
+  p1.id = p2.post_id
+WHERE
+  p1.id = $1;''';
+      }
+
+      if (includePostlikes) {
+        query = r'''SELECT
+  p.id as p_posts_id,
+  p.post_id as p_posts_post_id,
+  p.title as p_posts_title,
+  p.body as p_posts_body,
+  p.owner_id as p_posts_owner_id,
+  p.created_at as p_posts_created_at,
+  p.updated_at as p_posts_updated_at,
+  l.id as l_likes_id2,
+  l.post_id as l_likes_post_id2,
+  l.user_id as l_likes_user_id2,
+  l.created_at as l_likes_created_at2
+FROM
+  tb_posts p
+JOIN
+  tb_likes l
+ON
+  p.id = l.post_id
+WHERE
+  p.id = $1;''';
+      }
 
       if (verbose) {
         print(
@@ -862,6 +1246,102 @@ class PostsRepository {
       }
 
       final row = result.first;
+
+      if (includePostreplies) {
+        final [
+          String id,
+          String? postId,
+          String title,
+          String body,
+          String ownerId,
+          DateTime createdAt,
+          DateTime updatedAt,
+          ...
+        ] = row as List;
+
+        final postReplies = result.map(
+          (r) {
+            final [
+              ...,
+              String id,
+              String? postId,
+              String title,
+              String body,
+              String ownerId,
+              DateTime createdAt,
+              DateTime updatedAt,
+            ] = r as List;
+
+            return PostEntity(
+              id: id,
+              postId: postId,
+              title: title,
+              body: body,
+              ownerId: ownerId,
+              createdAt: createdAt,
+              updatedAt: updatedAt,
+            );
+          },
+        ).toList();
+
+        final entity = PostEntity(
+          id: id,
+          postId: postId,
+          title: title,
+          body: body,
+          ownerId: ownerId,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          postReplies: postReplies,
+        );
+
+        return Success(entity);
+      }
+
+      if (includePostlikes) {
+        final [
+          String id,
+          String? postId,
+          String title,
+          String body,
+          String ownerId,
+          DateTime createdAt,
+          DateTime updatedAt,
+          ...
+        ] = row as List;
+
+        final postLikes = result.map(
+          (r) {
+            final [
+              ...,
+              String id,
+              String postId,
+              String userId,
+              DateTime createdAt,
+            ] = r as List;
+
+            return LikeEntity(
+              id: id,
+              postId: postId,
+              userId: userId,
+              createdAt: createdAt,
+            );
+          },
+        ).toList();
+
+        final entity = PostEntity(
+          id: id,
+          postId: postId,
+          title: title,
+          body: body,
+          ownerId: ownerId,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          postLikes: postLikes,
+        );
+
+        return Success(entity);
+      }
 
       final [
         String id,
@@ -1040,6 +1520,8 @@ class FindManyPostParams {
   final Where? ownerId;
   final Where? createdAt;
   final Where? updatedAt;
+  final bool includePostreplies;
+  final bool includePostlikes;
   final int? limit;
   final int? offset;
   final OrderBy? orderBy;
@@ -1052,6 +1534,8 @@ class FindManyPostParams {
     this.ownerId,
     this.createdAt,
     this.updatedAt,
+    this.includePostreplies = false,
+    this.includePostlikes = false,
     this.limit,
     this.offset,
     this.orderBy,
@@ -1159,7 +1643,7 @@ class LikesRepository {
       InsertOneLikeParams params) async {
     try {
       final query =
-          r'INSERT INTO tb_likes (postId, userId) VALUES ($1, $2) RETURNING *;';
+          r'INSERT INTO tb_likes (post_id, user_id) VALUES ($1, $2) RETURNING *;';
 
       if (verbose) {
         print(
@@ -1278,7 +1762,7 @@ class LikesRepository {
 
   AsyncResult<LikeEntity, Exception> findByPK(String pk) async {
     try {
-      final query = r'SELECT * FROM tb_likes WHERE id = $1 LIMIT 1;';
+      String query = r'SELECT * FROM tb_likes WHERE id = $1 LIMIT 1;';
 
       if (verbose) {
         print(
@@ -1456,6 +1940,7 @@ class FindManyLikeParams {
   final Where? postId;
   final Where? userId;
   final Where? createdAt;
+
   final int? limit;
   final int? offset;
   final OrderBy? orderBy;
@@ -1542,7 +2027,7 @@ class FollowersRepository {
       InsertOneFollowerParams params) async {
     try {
       final query =
-          r'INSERT INTO tb_followers (followerId, followingId) VALUES ($1, $2) RETURNING *;';
+          r'INSERT INTO tb_followers (follower_id, following_id) VALUES ($1, $2) RETURNING *;';
 
       if (verbose) {
         print(
@@ -1661,7 +2146,7 @@ class FollowersRepository {
 
   AsyncResult<FollowerEntity, Exception> findByPK(String pk) async {
     try {
-      final query = r'SELECT * FROM tb_followers WHERE id = $1 LIMIT 1;';
+      String query = r'SELECT * FROM tb_followers WHERE id = $1 LIMIT 1;';
 
       if (verbose) {
         print(
@@ -1839,6 +2324,7 @@ class FindManyFollowerParams {
   final Where? followerId;
   final Where? followingId;
   final Where? createdAt;
+
   final int? limit;
   final int? offset;
   final OrderBy? orderBy;

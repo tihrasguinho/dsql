@@ -187,9 +187,9 @@ void _generateDartFiles(Directory input, Directory output) {
 
       if (match1 != null) {
         final constraintRef = match1.group(1);
-        // final colOrigin = match.group(2)!;
+        final colOrigin = match1.group(2)!;
         final tableRef = match1.group(3)!;
-        final columnRef = match1.group(4)!;
+        // final columnRef = match1.group(4)!;
 
         final index = tables.indexWhere((t) => t.name == tableRef);
         if (index < 0) continue;
@@ -197,22 +197,20 @@ void _generateDartFiles(Directory input, Directory output) {
         tables[index] = tables[index].copyWith(
           references: {
             ...tables[index].references,
-            '${constraintRef ?? tableRef}:$columnRef': table,
+            '${constraintRef ?? tableRef}:$colOrigin': table,
           },
         );
       } else if (match2 != null) {
-        // final colOrigin = match.group(1)!;
+        final colOrigin = match2.group(1)!;
         final tableRef = match2.group(1)!;
-        final columnRef = match2.group(2)!;
-
-        print(' ---> FOUND2: $tableRef $columnRef');
+        // final columnRef = match2.group(2)!;
 
         final index = tables.indexWhere((t) => t.name == tableRef);
         if (index < 0) continue;
         tables[index] = tables[index].copyWith(
           references: {
             ...tables[index].references,
-            '$tableRef:$columnRef': table,
+            '$tableRef:$colOrigin': table,
           },
         );
       }
@@ -406,6 +404,7 @@ String _entitiesBuilder(List<_Table> tables) {
   final entities = <String>[];
 
   for (final table in tables) {
+    final hasReferences = table.references.isNotEmpty;
     final content = '''class ${table.entity} {
     
 ${table.columns.map((c) => 'final ${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)};').join('\n')}
@@ -434,7 +433,10 @@ ${table.references.entries.map((entry) {
 
   Map<String, dynamic> toMap() {
     return {
-${table.columns.map((c) => '      \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '\'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
+${table.references.entries.map((entry) {
+      return '\'${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first)).toSnakeCase()}\': ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}.map((e) => e.toMap()).toList(),';
+    }).join('\n')}
     };
   }
 
@@ -443,7 +445,34 @@ ${table.columns.map((c) => '      \'${_fieldName(c).toSnakeCase()}\': ${_fieldNa
   factory ${table.entity}.fromMap(Map<String, dynamic> map) {
       return ${table.entity}(
 ${table.columns.map((c) => '        ${_fieldName(c)}: map[\'${_fieldName(c).toSnakeCase()}\'] as ${_fieldType(c)},').join('\n')}
+${table.references.entries.map(
+      (entry) {
+        return '''${_tryToPluralize(_constraintNameNormalizer(entry.key.split(":").first))}: List<${entry.value.entity}>.from(
+            (map['${_tryToPluralize(_constraintNameNormalizer(entry.key.split(":").first)).toSnakeCase()}'] as List).map((innerMap) {
+              return ${entry.value.entity}.fromMap(innerMap);
+            },
+          ),
+        ),''';
+      },
+    ).join('\n')}
       );
+  }
+
+  @override
+  String toString() {
+    return '${table.entity}(${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)}').join(', ')}${hasReferences ? ', ' : ''}${table.references.entries.map((entry) => '${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}: \$${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}').join(', ')})';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is ${table.entity} && ${table.columns.map((c) => 'other.${_fieldName(c)} == ${_fieldName(c)}').join(' && ')};
+  }
+
+  @override
+  int get hashCode {
+    return ${table.columns.map((c) => '${_fieldName(c)}.hashCode').join(' ^ ')};
   }
 }''';
 
@@ -470,8 +499,7 @@ String _insertOneParamsBuilder(_Table table) {
 String _insertOneBuilder(_Table table) {
   return '''AsyncResult<${table.entity}, Exception> insertOne(InsertOne${table.rawEntityName}Params params) async {
     try {
-
-      final query = r'INSERT INTO ${table.name} (${table.columns.where((c) => _isRequired(c)).map((c) => _fieldName(c)).join(', ')}) VALUES (${List.generate(table.columns.where((c) => _isRequired(c)).length, (i) => '\$${i + 1}').join(', ')}) RETURNING *;';
+      final query = r'INSERT INTO ${table.name} (${table.columns.where((c) => _isRequired(c)).map((c) => _fieldName(c).toSnakeCase()).join(', ')}) VALUES (${List.generate(table.columns.where((c) => _isRequired(c)).length, (i) => '\$${i + 1}').join(', ')}) RETURNING *;';
 
       if (verbose) {
         print('${'-' * 80}');
@@ -512,12 +540,14 @@ ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
 String _findManyParamsBuilder(_Table table) {
   return '''class FindMany${table.rawEntityName}Params {
   ${table.columns.map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
+  ${table.references.entries.map((entry) => 'final bool include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()};').join('\n')}
   final int? limit;
   final int? offset;
   final OrderBy? orderBy;
 
   const FindMany${table.rawEntityName}Params({
     ${table.columns.map((c) => 'this.${_fieldName(c)},').join('\n')}
+    ${table.references.entries.map((entry) => 'this.include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()} = false,').join('\n')}
     this.limit,
     this.offset,
     this.orderBy,
@@ -599,9 +629,40 @@ String _findByPkBuilder(_Table table) {
     false => '',
     true => '''AsyncResult<${table.entity}, Exception> findByPK(
     ${_getPkType(table.columns)} pk
+    ${table.references.isNotEmpty ? ',{${table.references.entries.map(
+          (entry) {
+            return 'bool include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()} = false,';
+          },
+        ).join('\n')}}' : ''}
   ) async {
   try {
-    final query = r'SELECT * FROM ${table.name} WHERE ${_getPkName(table.columns)} = \$1 LIMIT 1;';
+    String query = r'SELECT * FROM ${table.name} WHERE ${_getPkName(table.columns)} = \$1 LIMIT 1;';
+
+    ${table.references.entries.map(
+        (entry) {
+          final first = switch (table.name == entry.value.name || table.nameWithoutPrefixTB[0] == entry.value.nameWithoutPrefixTB[0]) {
+            true => '${table.nameWithoutPrefixTB[0]}1',
+            false => table.nameWithoutPrefixTB[0],
+          };
+          final second = switch (table.name == entry.value.name || table.nameWithoutPrefixTB[0] == entry.value.nameWithoutPrefixTB[0]) {
+            true => '${entry.value.nameWithoutPrefixTB[0]}2',
+            false => entry.value.nameWithoutPrefixTB[0],
+          };
+          return '''if (include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()}) {
+query = r\'\'\'SELECT
+${table.columns.map((c) => '  $first.${_fieldName(c).toSnakeCase()} as ${first}_${table.nameWithoutPrefixTB}_${_fieldName(c).toSnakeCase()},').join('\n')}
+${entry.value.columns.map((c) => '  $second.${_fieldName(c).toSnakeCase()} as ${second}_${entry.value.nameWithoutPrefixTB}_${_fieldName(c).toSnakeCase()}2').join(',\n')}
+FROM
+  ${table.name} $first
+JOIN
+  ${entry.value.name} $second
+ON
+  $first.${_getPkName(table.columns).toSnakeCase()} = $second.${entry.key.split(':')[1]}
+WHERE
+  $first.${_getPkName(table.columns).toSnakeCase()} = \$1;\'\'\';
+}''';
+        },
+      ).join('\n\n')}
 
     if (verbose) {
       print('${'-' * 80}');
@@ -623,6 +684,36 @@ String _findByPkBuilder(_Table table) {
     }
   
     final row = result.first;
+
+    ${table.references.entries.map(
+        (entry) {
+          return '''if (include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()}) {
+                final [
+                  ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+                  ...
+                ] = row as List;
+
+                final ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))} = result.map((r) {
+                    final [
+                      ...,
+                      ${entry.value.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+                    ] = r as List;
+
+                    return ${entry.value.entity}(
+                      ${entry.value.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+                    );
+                  },
+                ).toList();
+
+                final entity = ${table.entity}(
+                  ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+                  ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}: ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))},
+                );
+
+                return Success(entity);
+              }''';
+        },
+      ).join('\n\n')}
   
     final [
       ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
