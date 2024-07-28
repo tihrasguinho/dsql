@@ -12,12 +12,24 @@ final _regTb = RegExp(r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s(
 
 void main(List<String> args) async {
   final parser = ArgParser()
-    ..addOption('output', abbr: 'o')
-    ..addOption('input', abbr: 'i')
-    ..addFlag('migrate', abbr: 'm', help: 'Migrate the database based on the sql files!', negatable: false)
-    ..addFlag('generate', abbr: 'g', help: 'Generate the dart files from the sql files!', negatable: false);
+    ..addOption('output', abbr: 'o', help: 'Set the output directory, where the dart files will be, if not set, default: lib/generated')
+    ..addOption('input', abbr: 'i', help: 'Set the input directory, where the sql files are, if not set, default: migrations')
+    ..addFlag('migrate', abbr: 'm', help: 'Migrate the database based on the sql files and generate the dart files', negatable: false)
+    ..addFlag('generate', abbr: 'g', help: 'Generate the dart files from the sql files', negatable: false)
+    ..addFlag('help', abbr: 'h', help: 'Show the help information.', negatable: false);
 
   final results = parser.parse(args);
+
+  if (results.flag('help')) {
+    stdout.writeln('Usage: dart run dsql [options]');
+    stdout.writeln();
+    stdout.writeln(parser.usage);
+    stdout.writeln();
+    stdout.writeln('Example:');
+    stdout.writeln('  dart run dsql --migrate');
+    stdout.writeln('  dart run dsql --generate --input sql/files/location --output dart/files/location');
+    exit(0);
+  }
 
   final root = Directory.current;
 
