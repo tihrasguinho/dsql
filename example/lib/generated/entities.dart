@@ -11,7 +11,6 @@ class UserEntity {
   final String password;
   final String? image;
   final String? bio;
-  final String? website;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<PostEntity> userPosts;
@@ -27,7 +26,6 @@ class UserEntity {
     required this.password,
     this.image,
     this.bio,
-    this.website,
     required this.createdAt,
     required this.updatedAt,
     this.userPosts = const <PostEntity>[],
@@ -44,7 +42,6 @@ class UserEntity {
     String? password,
     String? image,
     String? bio,
-    String? website,
     DateTime? createdAt,
     DateTime? updatedAt,
     List<PostEntity>? userPosts,
@@ -60,7 +57,6 @@ class UserEntity {
       password: password ?? this.password,
       image: image ?? this.image,
       bio: bio ?? this.bio,
-      website: website ?? this.website,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       userPosts: userPosts ?? this.userPosts,
@@ -79,7 +75,6 @@ class UserEntity {
       'password': password,
       'image': image,
       'bio': bio,
-      'website': website,
       'created_at': createdAt,
       'updated_at': updatedAt,
       'user_posts': userPosts.map((e) => e.toMap()).toList(),
@@ -100,7 +95,6 @@ class UserEntity {
       password: map['password'] as String,
       image: map['image'] as String,
       bio: map['bio'] as String,
-      website: map['website'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
       userPosts: List<PostEntity>.from(
@@ -136,7 +130,7 @@ class UserEntity {
 
   @override
   String toString() {
-    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, website: $website, createdAt: $createdAt, updatedAt: $updatedAt, userPosts: $userPosts, userLikes: $userLikes, followers: $followers, following: $following)';
+    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt, userPosts: $userPosts, userLikes: $userLikes, followers: $followers, following: $following)';
   }
 
   @override
@@ -151,7 +145,6 @@ class UserEntity {
         other.password == password &&
         other.image == image &&
         other.bio == bio &&
-        other.website == website &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt;
   }
@@ -165,7 +158,6 @@ class UserEntity {
         password.hashCode ^
         image.hashCode ^
         bio.hashCode ^
-        website.hashCode ^
         createdAt.hashCode ^
         updatedAt.hashCode;
   }
@@ -174,9 +166,8 @@ class UserEntity {
 class PostEntity {
   final String id;
   final String? postId;
-  final String title;
-  final String body;
-  final String ownerId;
+  final String content;
+  final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<PostEntity> postReplies;
@@ -185,9 +176,8 @@ class PostEntity {
   const PostEntity({
     required this.id,
     this.postId,
-    required this.title,
-    required this.body,
-    required this.ownerId,
+    required this.content,
+    required this.userId,
     required this.createdAt,
     required this.updatedAt,
     this.postReplies = const <PostEntity>[],
@@ -197,9 +187,8 @@ class PostEntity {
   PostEntity copyWith({
     String? id,
     String? postId,
-    String? title,
-    String? body,
-    String? ownerId,
+    String? content,
+    String? userId,
     DateTime? createdAt,
     DateTime? updatedAt,
     List<PostEntity>? postReplies,
@@ -208,9 +197,8 @@ class PostEntity {
     return PostEntity(
       id: id ?? this.id,
       postId: postId ?? this.postId,
-      title: title ?? this.title,
-      body: body ?? this.body,
-      ownerId: ownerId ?? this.ownerId,
+      content: content ?? this.content,
+      userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       postReplies: postReplies ?? this.postReplies,
@@ -222,9 +210,8 @@ class PostEntity {
     return {
       'id': id,
       'post_id': postId,
-      'title': title,
-      'body': body,
-      'owner_id': ownerId,
+      'content': content,
+      'user_id': userId,
       'created_at': createdAt,
       'updated_at': updatedAt,
       'post_replies': postReplies.map((e) => e.toMap()).toList(),
@@ -238,9 +225,8 @@ class PostEntity {
     return PostEntity(
       id: map['id'] as String,
       postId: map['post_id'] as String,
-      title: map['title'] as String,
-      body: map['body'] as String,
-      ownerId: map['owner_id'] as String,
+      content: map['content'] as String,
+      userId: map['user_id'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
       postReplies: List<PostEntity>.from(
@@ -262,7 +248,7 @@ class PostEntity {
 
   @override
   String toString() {
-    return 'PostEntity(id: $id, postId: $postId, title: $title, body: $body, ownerId: $ownerId, createdAt: $createdAt, updatedAt: $updatedAt, postReplies: $postReplies, postLikes: $postLikes)';
+    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, postReplies: $postReplies, postLikes: $postLikes)';
   }
 
   @override
@@ -272,9 +258,8 @@ class PostEntity {
     return other is PostEntity &&
         other.id == id &&
         other.postId == postId &&
-        other.title == title &&
-        other.body == body &&
-        other.ownerId == ownerId &&
+        other.content == content &&
+        other.userId == userId &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt;
   }
@@ -283,9 +268,8 @@ class PostEntity {
   int get hashCode {
     return id.hashCode ^
         postId.hashCode ^
-        title.hashCode ^
-        body.hashCode ^
-        ownerId.hashCode ^
+        content.hashCode ^
+        userId.hashCode ^
         createdAt.hashCode ^
         updatedAt.hashCode;
   }

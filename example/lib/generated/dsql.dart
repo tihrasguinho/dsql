@@ -64,8 +64,12 @@ class UsersRepository {
 
   const UsersRepository(this._conn, {this.verbose = false});
 
-  AsyncResult<UserEntity, Exception> insertOne(
-      InsertOneUserParams params) async {
+  AsyncResult<UserEntity, Exception> insertOne({
+    required String name,
+    required String username,
+    required String email,
+    required String password,
+  }) async {
     try {
       final query =
           r'INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;';
@@ -76,7 +80,7 @@ class UsersRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.indexedParams}');
+        print('PARAMS => $name, $username, $email, $password');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -84,7 +88,7 @@ class UsersRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.indexedParams,
+        parameters: [name, username, email, password],
       );
 
       if (result.isEmpty) {
@@ -94,29 +98,27 @@ class UsersRepository {
       final row = result.first;
 
       final [
-        String id,
-        String name,
-        String username,
-        String email,
-        String password,
-        String? image,
-        String? bio,
-        String? website,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String $name,
+        String $username,
+        String $email,
+        String $password,
+        String? $image,
+        String? $bio,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = UserEntity(
-        id: id,
-        name: name,
-        username: username,
-        email: email,
-        password: password,
-        image: image,
-        bio: bio,
-        website: website,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        name: $name,
+        username: $username,
+        email: $email,
+        password: $password,
+        image: $image,
+        bio: $bio,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -125,32 +127,23 @@ class UsersRepository {
     }
   }
 
-  AsyncResult<List<UserEntity>, Exception> findMany([
-    FindManyUserParams params = const FindManyUserParams(),
-  ]) async {
+  AsyncResult<List<UserEntity>, Exception> insertMany({
+    required List<
+            ({String name, String username, String email, String password})>
+        values,
+  }) async {
     try {
-      final where = switch (params.wheres.isEmpty) {
-        true => '',
-        false =>
-          ' WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')}',
-      };
+      if (values.isEmpty) {
+        return Error(Exception('Fail to insert: no data to insert!'));
+      }
 
-      final orderBy = switch (params.orderBy != null) {
-        true => ' ORDER BY ${params.orderBy?.sql}',
-        false => '',
-      };
+      final query =
+          'INSERT INTO tb_users (name, username, email, password) VALUES ${values.indexedMap((index, value) => '(\$${0 + 1 + (index * 4)}, \$${1 + 1 + (index * 4)}, \$${2 + 1 + (index * 4)}, \$${3 + 1 + (index * 4)})').join(', ')} RETURNING *;';
 
-      final offset = switch (params.offset != null) {
-        true => ' OFFSET ${params.offset}',
-        false => '',
-      };
-
-      final limit = switch (params.limit != null) {
-        true => ' LIMIT ${params.limit}',
-        false => '',
-      };
-
-      final query = 'SELECT * FROM tb_users$where$orderBy$offset$limit;';
+      final parameters = values
+          .map((v) => [v.name, v.username, v.email, v.password])
+          .expand((v) => v)
+          .toList();
 
       if (verbose) {
         print(
@@ -158,7 +151,7 @@ class UsersRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => $parameters');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -166,36 +159,42 @@ class UsersRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: parameters,
       );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to insert data on table `tb_users`!'));
+      }
+
+      if (result.length != values.length) {
+        return Error(Exception('Fail to insert data on table `tb_users`!'));
+      }
 
       final entities = List<UserEntity>.from(
         result.map(
           (row) {
             final [
-              String id,
-              String name,
-              String username,
-              String email,
-              String password,
-              String? image,
-              String? bio,
-              String? website,
-              DateTime createdAt,
-              DateTime updatedAt,
+              String $id,
+              String $name,
+              String $username,
+              String $email,
+              String $password,
+              String? $image,
+              String? $bio,
+              DateTime $createdAt,
+              DateTime $updatedAt,
             ] = row as List;
 
             final entity = UserEntity(
-              id: id,
-              name: name,
-              username: username,
-              email: email,
-              password: password,
-              image: image,
-              bio: bio,
-              website: website,
-              createdAt: createdAt,
-              updatedAt: updatedAt,
+              id: $id,
+              name: $name,
+              username: $username,
+              email: $email,
+              password: $password,
+              image: $image,
+              bio: $bio,
+              createdAt: $createdAt,
+              updatedAt: $updatedAt,
             );
 
             return entity;
@@ -209,122 +208,53 @@ class UsersRepository {
     }
   }
 
-  AsyncResult<UserEntity, Exception> findByPK(
-    String pk, {
-    bool includeUserposts = false,
-    bool includeUserlikes = false,
-    bool includeFollower = false,
-    bool includeFollowing = false,
+  AsyncResult<List<UserEntity>, Exception> findMany({
+    Where? id,
+    Where? name,
+    Where? username,
+    Where? email,
+    Where? password,
+    Where? image,
+    Where? bio,
+    Where? createdAt,
+    Where? updatedAt,
+    int? limit,
+    int? offset,
+    OrderBy? orderBy,
   }) async {
     try {
-      String query = r'SELECT * FROM tb_users WHERE id = $1 LIMIT 1;';
+      String query = 'SELECT * FROM tb_users;';
 
-      if (includeUserposts) {
-        query = r'''SELECT
-  u.id as u_users_id,
-  u.name as u_users_name,
-  u.username as u_users_username,
-  u.email as u_users_email,
-  u.password as u_users_password,
-  u.image as u_users_image,
-  u.bio as u_users_bio,
-  u.website as u_users_website,
-  u.created_at as u_users_created_at,
-  u.updated_at as u_users_updated_at,
-  p.id as p_posts_id2,
-  p.post_id as p_posts_post_id2,
-  p.title as p_posts_title2,
-  p.body as p_posts_body2,
-  p.owner_id as p_posts_owner_id2,
-  p.created_at as p_posts_created_at2,
-  p.updated_at as p_posts_updated_at2
-FROM
-  tb_users u
-JOIN
-  tb_posts p
-ON
-  u.id = p.owner_id
-WHERE
-  u.id = $1;''';
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (name != null) 'name': name,
+        if (username != null) 'username': username,
+        if (email != null) 'email': email,
+        if (password != null) 'password': password,
+        if (image != null) 'image': image,
+        if (bio != null) 'bio': bio,
+        if (createdAt != null) 'created_at': createdAt,
+        if (updatedAt != null) 'updated_at': updatedAt,
+      };
+
+      if (wheres.isNotEmpty) {
+        query =
+            'SELECT * FROM tb_users WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
       }
 
-      if (includeUserlikes) {
-        query = r'''SELECT
-  u.id as u_users_id,
-  u.name as u_users_name,
-  u.username as u_users_username,
-  u.email as u_users_email,
-  u.password as u_users_password,
-  u.image as u_users_image,
-  u.bio as u_users_bio,
-  u.website as u_users_website,
-  u.created_at as u_users_created_at,
-  u.updated_at as u_users_updated_at,
-  l.id as l_likes_id2,
-  l.post_id as l_likes_post_id2,
-  l.user_id as l_likes_user_id2,
-  l.created_at as l_likes_created_at2
-FROM
-  tb_users u
-JOIN
-  tb_likes l
-ON
-  u.id = l.user_id
-WHERE
-  u.id = $1;''';
+      if (offset != null) {
+        query += ' OFFSET $offset';
       }
 
-      if (includeFollower) {
-        query = r'''SELECT
-  u.id as u_users_id,
-  u.name as u_users_name,
-  u.username as u_users_username,
-  u.email as u_users_email,
-  u.password as u_users_password,
-  u.image as u_users_image,
-  u.bio as u_users_bio,
-  u.website as u_users_website,
-  u.created_at as u_users_created_at,
-  u.updated_at as u_users_updated_at,
-  f.id as f_followers_id2,
-  f.follower_id as f_followers_follower_id2,
-  f.following_id as f_followers_following_id2,
-  f.created_at as f_followers_created_at2
-FROM
-  tb_users u
-JOIN
-  tb_followers f
-ON
-  u.id = f.follower_id
-WHERE
-  u.id = $1;''';
+      if (limit != null) {
+        query += ' LIMIT $limit';
       }
 
-      if (includeFollowing) {
-        query = r'''SELECT
-  u.id as u_users_id,
-  u.name as u_users_name,
-  u.username as u_users_username,
-  u.email as u_users_email,
-  u.password as u_users_password,
-  u.image as u_users_image,
-  u.bio as u_users_bio,
-  u.website as u_users_website,
-  u.created_at as u_users_created_at,
-  u.updated_at as u_users_updated_at,
-  f.id as f_followers_id2,
-  f.follower_id as f_followers_follower_id2,
-  f.following_id as f_followers_following_id2,
-  f.created_at as f_followers_created_at2
-FROM
-  tb_users u
-JOIN
-  tb_followers f
-ON
-  u.id = f.following_id
-WHERE
-  u.id = $1;''';
+      if (orderBy != null) {
+        query += ' ORDER BY ${orderBy.sql}';
       }
+
+      query += ';';
 
       if (verbose) {
         print(
@@ -332,7 +262,7 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${[pk]}');
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -340,249 +270,122 @@ WHERE
 
       final result = await _conn.execute(
         query,
-        parameters: [pk],
+        parameters: wheres.values.map((w) => w.value).toList(),
+      );
+
+      final entities = List<UserEntity>.from(
+        result.map(
+          (row) {
+            final [
+              String $id,
+              String $name,
+              String $username,
+              String $email,
+              String $password,
+              String? $image,
+              String? $bio,
+              DateTime $createdAt,
+              DateTime $updatedAt,
+            ] = row as List;
+
+            return UserEntity(
+              id: $id,
+              name: $name,
+              username: $username,
+              email: $email,
+              password: $password,
+              image: $image,
+              bio: $bio,
+              createdAt: $createdAt,
+              updatedAt: $updatedAt,
+            );
+          },
+        ),
+      );
+
+      return Success(entities);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<UserEntity, Exception> findOne({
+    Where? id,
+    Where? name,
+    Where? username,
+    Where? email,
+    Where? password,
+    Where? image,
+    Where? bio,
+    Where? createdAt,
+    Where? updatedAt,
+  }) async {
+    try {
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (name != null) 'name': name,
+        if (username != null) 'username': username,
+        if (email != null) 'email': email,
+        if (password != null) 'password': password,
+        if (image != null) 'image': image,
+        if (bio != null) 'bio': bio,
+        if (createdAt != null) 'created_at': createdAt,
+        if (updatedAt != null) 'updated_at': updatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(
+            Exception('You need to pass at least one where parameter!'));
+      }
+
+      final query =
+          'SELECT * FROM tb_users WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} LIMIT 1;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
 
       if (result.isEmpty) {
-        return Error(Exception('Fail to find data on table `tb_users`!'));
+        return Error(Exception('UserEntity not found'));
       }
 
       final row = result.first;
 
-      if (includeUserposts) {
-        final [
-          String id,
-          String name,
-          String username,
-          String email,
-          String password,
-          String? image,
-          String? bio,
-          String? website,
-          DateTime createdAt,
-          DateTime updatedAt,
-          ...
-        ] = row as List;
-
-        final userPosts = result.map(
-          (r) {
-            final [
-              ...,
-              String id,
-              String? postId,
-              String title,
-              String body,
-              String ownerId,
-              DateTime createdAt,
-              DateTime updatedAt,
-            ] = r as List;
-
-            return PostEntity(
-              id: id,
-              postId: postId,
-              title: title,
-              body: body,
-              ownerId: ownerId,
-              createdAt: createdAt,
-              updatedAt: updatedAt,
-            );
-          },
-        ).toList();
-
-        final entity = UserEntity(
-          id: id,
-          name: name,
-          username: username,
-          email: email,
-          password: password,
-          image: image,
-          bio: bio,
-          website: website,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
-          userPosts: userPosts,
-        );
-
-        return Success(entity);
-      }
-
-      if (includeUserlikes) {
-        final [
-          String id,
-          String name,
-          String username,
-          String email,
-          String password,
-          String? image,
-          String? bio,
-          String? website,
-          DateTime createdAt,
-          DateTime updatedAt,
-          ...
-        ] = row as List;
-
-        final userLikes = result.map(
-          (r) {
-            final [
-              ...,
-              String id,
-              String postId,
-              String userId,
-              DateTime createdAt,
-            ] = r as List;
-
-            return LikeEntity(
-              id: id,
-              postId: postId,
-              userId: userId,
-              createdAt: createdAt,
-            );
-          },
-        ).toList();
-
-        final entity = UserEntity(
-          id: id,
-          name: name,
-          username: username,
-          email: email,
-          password: password,
-          image: image,
-          bio: bio,
-          website: website,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
-          userLikes: userLikes,
-        );
-
-        return Success(entity);
-      }
-
-      if (includeFollower) {
-        final [
-          String id,
-          String name,
-          String username,
-          String email,
-          String password,
-          String? image,
-          String? bio,
-          String? website,
-          DateTime createdAt,
-          DateTime updatedAt,
-          ...
-        ] = row as List;
-
-        final followers = result.map(
-          (r) {
-            final [
-              ...,
-              String id,
-              String followerId,
-              String followingId,
-              DateTime createdAt,
-            ] = r as List;
-
-            return FollowerEntity(
-              id: id,
-              followerId: followerId,
-              followingId: followingId,
-              createdAt: createdAt,
-            );
-          },
-        ).toList();
-
-        final entity = UserEntity(
-          id: id,
-          name: name,
-          username: username,
-          email: email,
-          password: password,
-          image: image,
-          bio: bio,
-          website: website,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
-          followers: followers,
-        );
-
-        return Success(entity);
-      }
-
-      if (includeFollowing) {
-        final [
-          String id,
-          String name,
-          String username,
-          String email,
-          String password,
-          String? image,
-          String? bio,
-          String? website,
-          DateTime createdAt,
-          DateTime updatedAt,
-          ...
-        ] = row as List;
-
-        final following = result.map(
-          (r) {
-            final [
-              ...,
-              String id,
-              String followerId,
-              String followingId,
-              DateTime createdAt,
-            ] = r as List;
-
-            return FollowerEntity(
-              id: id,
-              followerId: followerId,
-              followingId: followingId,
-              createdAt: createdAt,
-            );
-          },
-        ).toList();
-
-        final entity = UserEntity(
-          id: id,
-          name: name,
-          username: username,
-          email: email,
-          password: password,
-          image: image,
-          bio: bio,
-          website: website,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
-          following: following,
-        );
-
-        return Success(entity);
-      }
-
       final [
-        String id,
-        String name,
-        String username,
-        String email,
-        String password,
-        String? image,
-        String? bio,
-        String? website,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String $name,
+        String $username,
+        String $email,
+        String $password,
+        String? $image,
+        String? $bio,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = UserEntity(
-        id: id,
-        name: name,
-        username: username,
-        email: email,
-        password: password,
-        image: image,
-        bio: bio,
-        website: website,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        name: $name,
+        username: $username,
+        email: $email,
+        password: $password,
+        image: $image,
+        bio: $bio,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -591,7 +394,64 @@ WHERE
     }
   }
 
-  AsyncResult<UserEntity, Exception> findByUsername(String unique) async {
+  AsyncResult<UserEntity, Exception> findByPK(String id) async {
+    try {
+      String query = r'SELECT * FROM tb_users WHERE id = $1 LIMIT 1;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => $id');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: [id],
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to find data on table `tb_users`!'));
+      }
+
+      final row = result.first;
+
+      final [
+        String $id,
+        String $name,
+        String $username,
+        String $email,
+        String $password,
+        String? $image,
+        String? $bio,
+        DateTime $createdAt,
+        DateTime $updatedAt,
+      ] = row as List;
+
+      final entity = UserEntity(
+        id: $id,
+        name: $name,
+        username: $username,
+        email: $email,
+        password: $password,
+        image: $image,
+        bio: $bio,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<UserEntity, Exception> findByUsername(String username) async {
     try {
       final query = r'SELECT * FROM tb_users WHERE username = $1 LIMIT 1;';
 
@@ -601,7 +461,7 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${[unique]}');
+        print('PARAMS => $username');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -609,7 +469,7 @@ WHERE
 
       final result = await _conn.execute(
         query,
-        parameters: [unique],
+        parameters: [username],
       );
 
       if (result.isEmpty) {
@@ -619,29 +479,27 @@ WHERE
       final row = result.first;
 
       final [
-        String id,
-        String name,
-        String username,
-        String email,
-        String password,
-        String? image,
-        String? bio,
-        String? website,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String $name,
+        String $username,
+        String $email,
+        String $password,
+        String? $image,
+        String? $bio,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = UserEntity(
-        id: id,
-        name: name,
-        username: username,
-        email: email,
-        password: password,
-        image: image,
-        bio: bio,
-        website: website,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        name: $name,
+        username: $username,
+        email: $email,
+        password: $password,
+        image: $image,
+        bio: $bio,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -650,7 +508,7 @@ WHERE
     }
   }
 
-  AsyncResult<UserEntity, Exception> findByEmail(String unique) async {
+  AsyncResult<UserEntity, Exception> findByEmail(String email) async {
     try {
       final query = r'SELECT * FROM tb_users WHERE email = $1 LIMIT 1;';
 
@@ -660,7 +518,7 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${[unique]}');
+        print('PARAMS => $email');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -668,7 +526,7 @@ WHERE
 
       final result = await _conn.execute(
         query,
-        parameters: [unique],
+        parameters: [email],
       );
 
       if (result.isEmpty) {
@@ -678,29 +536,27 @@ WHERE
       final row = result.first;
 
       final [
-        String id,
-        String name,
-        String username,
-        String email,
-        String password,
-        String? image,
-        String? bio,
-        String? website,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String $name,
+        String $username,
+        String $email,
+        String $password,
+        String? $image,
+        String? $bio,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = UserEntity(
-        id: id,
-        name: name,
-        username: username,
-        email: email,
-        password: password,
-        image: image,
-        bio: bio,
-        website: website,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        name: $name,
+        username: $username,
+        email: $email,
+        password: $password,
+        image: $image,
+        bio: $bio,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -709,15 +565,59 @@ WHERE
     }
   }
 
-  AsyncResult<UserEntity, Exception> updateOne(
-      UpdateOneUserParams params) async {
+  AsyncResult<UserEntity, Exception> updateOne({
+    Where? whereId,
+    Where? whereName,
+    Where? whereUsername,
+    Where? whereEmail,
+    Where? wherePassword,
+    Where? whereImage,
+    Where? whereBio,
+    Where? whereCreatedAt,
+    Where? whereUpdatedAt,
+    String? setName,
+    String? setUsername,
+    String? setEmail,
+    String? setPassword,
+    String? setImage,
+    String? setBio,
+    DateTime? setCreatedAt,
+    DateTime? setUpdatedAt,
+  }) async {
     try {
-      if (params.parameters.isEmpty) {
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (whereName != null) 'name': whereName,
+        if (whereUsername != null) 'username': whereUsername,
+        if (whereEmail != null) 'email': whereEmail,
+        if (wherePassword != null) 'password': wherePassword,
+        if (whereImage != null) 'image': whereImage,
+        if (whereBio != null) 'bio': whereBio,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to update!'));
+      }
+
+      final parameters = <String, dynamic>{
+        if (setName != null) 'name': setName,
+        if (setUsername != null) 'username': setUsername,
+        if (setEmail != null) 'email': setEmail,
+        if (setPassword != null) 'password': setPassword,
+        if (setImage != null) 'image': setImage,
+        if (setBio != null) 'bio': setBio,
+        if (setCreatedAt != null) 'created_at': setCreatedAt,
+        if (setUpdatedAt != null) 'updated_at': setUpdatedAt,
+      };
+
+      if (parameters.isEmpty) {
         return Error(Exception('No data to update!'));
       }
 
       final query =
-          'UPDATE tb_users SET ${List.generate(params.parameters.length, (i) => '${params.parameters.keys.elementAt(i)} = \$${i + 1}').join(', ')} WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
+          'UPDATE tb_users SET ${parameters.entries.indexedMap((index, entry) => '${entry.key} = \$${index + 1}').join(', ')} WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1 + parameters.length}').join(' AND ')} RETURNING *;';
 
       if (verbose) {
         print(
@@ -725,10 +625,8 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${[
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
-        ]}');
+        print(
+            'PARAMS => ${parameters.values.join(', ')}, ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -737,8 +635,8 @@ WHERE
       final result = await _conn.execute(
         query,
         parameters: [
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
+          ...parameters.values,
+          ...wheres.values.map((w) => w.value)
         ],
       );
 
@@ -749,29 +647,27 @@ WHERE
       final row = result.first;
 
       final [
-        String id,
-        String name,
-        String username,
-        String email,
-        String password,
-        String? image,
-        String? bio,
-        String? website,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String $name,
+        String $username,
+        String $email,
+        String $password,
+        String? $image,
+        String? $bio,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = UserEntity(
-        id: id,
-        name: name,
-        username: username,
-        email: email,
-        password: password,
-        image: image,
-        bio: bio,
-        website: website,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        name: $name,
+        username: $username,
+        email: $email,
+        password: $password,
+        image: $image,
+        bio: $bio,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -780,15 +676,36 @@ WHERE
     }
   }
 
-  AsyncResult<UserEntity, Exception> deleteOne(
-      DeleteOneUserParams params) async {
+  AsyncResult<UserEntity, Exception> deleteOne({
+    Where? whereId,
+    Where? whereName,
+    Where? whereUsername,
+    Where? whereEmail,
+    Where? wherePassword,
+    Where? whereImage,
+    Where? whereBio,
+    Where? whereCreatedAt,
+    Where? whereUpdatedAt,
+  }) async {
     try {
-      if (params.wheres.isEmpty) {
-        return Error(Exception('No data to delete!'));
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (whereName != null) 'name': whereName,
+        if (whereUsername != null) 'username': whereUsername,
+        if (whereEmail != null) 'email': whereEmail,
+        if (wherePassword != null) 'password': wherePassword,
+        if (whereImage != null) 'image': whereImage,
+        if (whereBio != null) 'bio': whereBio,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to delete!'));
       }
 
       final query =
-          'DELETE FROM tb_users WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')} RETURNING *;';
+          'DELETE FROM tb_users WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} RETURNING *;';
 
       if (verbose) {
         print(
@@ -796,7 +713,7 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -804,7 +721,7 @@ WHERE
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
 
       if (result.isEmpty) {
@@ -821,7 +738,6 @@ WHERE
         String $password,
         String? $image,
         String? $bio,
-        String? $website,
         DateTime $createdAt,
         DateTime $updatedAt,
       ] = row as List;
@@ -834,7 +750,6 @@ WHERE
         password: $password,
         image: $image,
         bio: $bio,
-        website: $website,
         createdAt: $createdAt,
         updatedAt: $updatedAt,
       );
@@ -846,199 +761,19 @@ WHERE
   }
 }
 
-class InsertOneUserParams {
-  final String name;
-  final String username;
-  final String email;
-  final String password;
-
-  const InsertOneUserParams({
-    required this.name,
-    required this.username,
-    required this.email,
-    required this.password,
-  });
-
-  List get indexedParams => [
-        name,
-        username,
-        email,
-        password,
-      ];
-}
-
-class FindManyUserParams {
-  final Where? id;
-  final Where? name;
-  final Where? username;
-  final Where? email;
-  final Where? password;
-  final Where? image;
-  final Where? bio;
-  final Where? website;
-  final Where? createdAt;
-  final Where? updatedAt;
-  final bool includeUserposts;
-  final bool includeUserlikes;
-  final bool includeFollower;
-  final bool includeFollowing;
-  final int? limit;
-  final int? offset;
-  final OrderBy? orderBy;
-
-  const FindManyUserParams({
-    this.id,
-    this.name,
-    this.username,
-    this.email,
-    this.password,
-    this.image,
-    this.bio,
-    this.website,
-    this.createdAt,
-    this.updatedAt,
-    this.includeUserposts = false,
-    this.includeUserlikes = false,
-    this.includeFollower = false,
-    this.includeFollowing = false,
-    this.limit,
-    this.offset,
-    this.orderBy,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (name != null) 'name': name!,
-        if (username != null) 'username': username!,
-        if (email != null) 'email': email!,
-        if (password != null) 'password': password!,
-        if (image != null) 'image': image!,
-        if (bio != null) 'bio': bio!,
-        if (website != null) 'website': website!,
-        if (createdAt != null) 'created_at': createdAt!,
-        if (updatedAt != null) 'updated_at': updatedAt!,
-      };
-}
-
-class UpdateOneUserParams {
-  final Where? whereId;
-  final Where? whereName;
-  final Where? whereUsername;
-  final Where? whereEmail;
-  final Where? wherePassword;
-  final Where? whereImage;
-  final Where? whereBio;
-  final Where? whereWebsite;
-  final Where? whereCreatedAt;
-  final Where? whereUpdatedAt;
-  final String? name;
-  final String? username;
-  final String? email;
-  final String? password;
-  final String? image;
-  final String? bio;
-  final String? website;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-
-  const UpdateOneUserParams({
-    this.whereId,
-    this.whereName,
-    this.whereUsername,
-    this.whereEmail,
-    this.wherePassword,
-    this.whereImage,
-    this.whereBio,
-    this.whereWebsite,
-    this.whereCreatedAt,
-    this.whereUpdatedAt,
-    this.name,
-    this.username,
-    this.email,
-    this.password,
-    this.image,
-    this.bio,
-    this.website,
-    this.createdAt,
-    this.updatedAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (whereId != null) 'id': whereId!,
-        if (whereName != null) 'name': whereName!,
-        if (whereUsername != null) 'username': whereUsername!,
-        if (whereEmail != null) 'email': whereEmail!,
-        if (wherePassword != null) 'password': wherePassword!,
-        if (whereImage != null) 'image': whereImage!,
-        if (whereBio != null) 'bio': whereBio!,
-        if (whereWebsite != null) 'website': whereWebsite!,
-        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
-        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt!,
-      };
-
-  Map<String, dynamic> get parameters => {
-        if (name != null) 'name': name,
-        if (username != null) 'username': username,
-        if (email != null) 'email': email,
-        if (password != null) 'password': password,
-        if (image != null) 'image': image,
-        if (bio != null) 'bio': bio,
-        if (website != null) 'website': website,
-        if (createdAt != null) 'created_at': createdAt,
-        if (updatedAt != null) 'updated_at': updatedAt,
-      };
-}
-
-class DeleteOneUserParams {
-  final Where? id;
-  final Where? name;
-  final Where? username;
-  final Where? email;
-  final Where? password;
-  final Where? image;
-  final Where? bio;
-  final Where? website;
-  final Where? createdAt;
-  final Where? updatedAt;
-
-  const DeleteOneUserParams({
-    this.id,
-    this.name,
-    this.username,
-    this.email,
-    this.password,
-    this.image,
-    this.bio,
-    this.website,
-    this.createdAt,
-    this.updatedAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (name != null) 'name': name!,
-        if (username != null) 'username': username!,
-        if (email != null) 'email': email!,
-        if (password != null) 'password': password!,
-        if (image != null) 'image': image!,
-        if (bio != null) 'bio': bio!,
-        if (website != null) 'website': website!,
-        if (createdAt != null) 'created_at': createdAt!,
-        if (updatedAt != null) 'updated_at': updatedAt!,
-      };
-}
-
 class PostsRepository {
   final Connection _conn;
   final bool verbose;
 
   const PostsRepository(this._conn, {this.verbose = false});
 
-  AsyncResult<PostEntity, Exception> insertOne(
-      InsertOnePostParams params) async {
+  AsyncResult<PostEntity, Exception> insertOne({
+    required String content,
+    required String userId,
+  }) async {
     try {
       final query =
-          r'INSERT INTO tb_posts (title, body, owner_id) VALUES ($1, $2, $3) RETURNING *;';
+          r'INSERT INTO tb_posts (content, user_id) VALUES ($1, $2) RETURNING *;';
 
       if (verbose) {
         print(
@@ -1046,7 +781,7 @@ class PostsRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.indexedParams}');
+        print('PARAMS => $content, $userId');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1054,7 +789,7 @@ class PostsRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.indexedParams,
+        parameters: [content, userId],
       );
 
       if (result.isEmpty) {
@@ -1064,23 +799,21 @@ class PostsRepository {
       final row = result.first;
 
       final [
-        String id,
-        String? postId,
-        String title,
-        String body,
-        String ownerId,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String? $postId,
+        String $content,
+        String $userId,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = PostEntity(
-        id: id,
-        postId: postId,
-        title: title,
-        body: body,
-        ownerId: ownerId,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        postId: $postId,
+        content: $content,
+        userId: $userId,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -1089,32 +822,19 @@ class PostsRepository {
     }
   }
 
-  AsyncResult<List<PostEntity>, Exception> findMany([
-    FindManyPostParams params = const FindManyPostParams(),
-  ]) async {
+  AsyncResult<List<PostEntity>, Exception> insertMany({
+    required List<({String content, String userId})> values,
+  }) async {
     try {
-      final where = switch (params.wheres.isEmpty) {
-        true => '',
-        false =>
-          ' WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')}',
-      };
+      if (values.isEmpty) {
+        return Error(Exception('Fail to insert: no data to insert!'));
+      }
 
-      final orderBy = switch (params.orderBy != null) {
-        true => ' ORDER BY ${params.orderBy?.sql}',
-        false => '',
-      };
+      final query =
+          'INSERT INTO tb_posts (content, user_id) VALUES ${values.indexedMap((index, value) => '(\$${0 + 1 + (index * 2)}, \$${1 + 1 + (index * 2)})').join(', ')} RETURNING *;';
 
-      final offset = switch (params.offset != null) {
-        true => ' OFFSET ${params.offset}',
-        false => '',
-      };
-
-      final limit = switch (params.limit != null) {
-        true => ' LIMIT ${params.limit}',
-        false => '',
-      };
-
-      final query = 'SELECT * FROM tb_posts$where$orderBy$offset$limit;';
+      final parameters =
+          values.map((v) => [v.content, v.userId]).expand((v) => v).toList();
 
       if (verbose) {
         print(
@@ -1122,7 +842,7 @@ class PostsRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => $parameters');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1130,30 +850,36 @@ class PostsRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: parameters,
       );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to insert data on table `tb_posts`!'));
+      }
+
+      if (result.length != values.length) {
+        return Error(Exception('Fail to insert data on table `tb_posts`!'));
+      }
 
       final entities = List<PostEntity>.from(
         result.map(
           (row) {
             final [
-              String id,
-              String? postId,
-              String title,
-              String body,
-              String ownerId,
-              DateTime createdAt,
-              DateTime updatedAt,
+              String $id,
+              String? $postId,
+              String $content,
+              String $userId,
+              DateTime $createdAt,
+              DateTime $updatedAt,
             ] = row as List;
 
             final entity = PostEntity(
-              id: id,
-              postId: postId,
-              title: title,
-              body: body,
-              ownerId: ownerId,
-              createdAt: createdAt,
-              updatedAt: updatedAt,
+              id: $id,
+              postId: $postId,
+              content: $content,
+              userId: $userId,
+              createdAt: $createdAt,
+              updatedAt: $updatedAt,
             );
 
             return entity;
@@ -1167,62 +893,47 @@ class PostsRepository {
     }
   }
 
-  AsyncResult<PostEntity, Exception> findByPK(
-    String pk, {
-    bool includePostreplies = false,
-    bool includePostlikes = false,
+  AsyncResult<List<PostEntity>, Exception> findMany({
+    Where? id,
+    Where? postId,
+    Where? content,
+    Where? userId,
+    Where? createdAt,
+    Where? updatedAt,
+    int? limit,
+    int? offset,
+    OrderBy? orderBy,
   }) async {
     try {
-      String query = r'SELECT * FROM tb_posts WHERE id = $1 LIMIT 1;';
+      String query = 'SELECT * FROM tb_posts;';
 
-      if (includePostreplies) {
-        query = r'''SELECT
-  p1.id as p1_posts_id,
-  p1.post_id as p1_posts_post_id,
-  p1.title as p1_posts_title,
-  p1.body as p1_posts_body,
-  p1.owner_id as p1_posts_owner_id,
-  p1.created_at as p1_posts_created_at,
-  p1.updated_at as p1_posts_updated_at,
-  p2.id as p2_posts_id2,
-  p2.post_id as p2_posts_post_id2,
-  p2.title as p2_posts_title2,
-  p2.body as p2_posts_body2,
-  p2.owner_id as p2_posts_owner_id2,
-  p2.created_at as p2_posts_created_at2,
-  p2.updated_at as p2_posts_updated_at2
-FROM
-  tb_posts p1
-JOIN
-  tb_posts p2
-ON
-  p1.id = p2.post_id
-WHERE
-  p1.id = $1;''';
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (postId != null) 'post_id': postId,
+        if (content != null) 'content': content,
+        if (userId != null) 'user_id': userId,
+        if (createdAt != null) 'created_at': createdAt,
+        if (updatedAt != null) 'updated_at': updatedAt,
+      };
+
+      if (wheres.isNotEmpty) {
+        query =
+            'SELECT * FROM tb_posts WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
       }
 
-      if (includePostlikes) {
-        query = r'''SELECT
-  p.id as p_posts_id,
-  p.post_id as p_posts_post_id,
-  p.title as p_posts_title,
-  p.body as p_posts_body,
-  p.owner_id as p_posts_owner_id,
-  p.created_at as p_posts_created_at,
-  p.updated_at as p_posts_updated_at,
-  l.id as l_likes_id2,
-  l.post_id as l_likes_post_id2,
-  l.user_id as l_likes_user_id2,
-  l.created_at as l_likes_created_at2
-FROM
-  tb_posts p
-JOIN
-  tb_likes l
-ON
-  p.id = l.post_id
-WHERE
-  p.id = $1;''';
+      if (offset != null) {
+        query += ' OFFSET $offset';
       }
+
+      if (limit != null) {
+        query += ' LIMIT $limit';
+      }
+
+      if (orderBy != null) {
+        query += ' ORDER BY ${orderBy.sql}';
+      }
+
+      query += ';';
 
       if (verbose) {
         print(
@@ -1230,7 +941,7 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${[pk]}');
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1238,129 +949,104 @@ WHERE
 
       final result = await _conn.execute(
         query,
-        parameters: [pk],
+        parameters: wheres.values.map((w) => w.value).toList(),
+      );
+
+      final entities = List<PostEntity>.from(
+        result.map(
+          (row) {
+            final [
+              String $id,
+              String? $postId,
+              String $content,
+              String $userId,
+              DateTime $createdAt,
+              DateTime $updatedAt,
+            ] = row as List;
+
+            return PostEntity(
+              id: $id,
+              postId: $postId,
+              content: $content,
+              userId: $userId,
+              createdAt: $createdAt,
+              updatedAt: $updatedAt,
+            );
+          },
+        ),
+      );
+
+      return Success(entities);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<PostEntity, Exception> findOne({
+    Where? id,
+    Where? postId,
+    Where? content,
+    Where? userId,
+    Where? createdAt,
+    Where? updatedAt,
+  }) async {
+    try {
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (postId != null) 'post_id': postId,
+        if (content != null) 'content': content,
+        if (userId != null) 'user_id': userId,
+        if (createdAt != null) 'created_at': createdAt,
+        if (updatedAt != null) 'updated_at': updatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(
+            Exception('You need to pass at least one where parameter!'));
+      }
+
+      final query =
+          'SELECT * FROM tb_posts WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} LIMIT 1;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
 
       if (result.isEmpty) {
-        return Error(Exception('Fail to find data on table `tb_posts`!'));
+        return Error(Exception('PostEntity not found'));
       }
 
       final row = result.first;
 
-      if (includePostreplies) {
-        final [
-          String id,
-          String? postId,
-          String title,
-          String body,
-          String ownerId,
-          DateTime createdAt,
-          DateTime updatedAt,
-          ...
-        ] = row as List;
-
-        final postReplies = result.map(
-          (r) {
-            final [
-              ...,
-              String id,
-              String? postId,
-              String title,
-              String body,
-              String ownerId,
-              DateTime createdAt,
-              DateTime updatedAt,
-            ] = r as List;
-
-            return PostEntity(
-              id: id,
-              postId: postId,
-              title: title,
-              body: body,
-              ownerId: ownerId,
-              createdAt: createdAt,
-              updatedAt: updatedAt,
-            );
-          },
-        ).toList();
-
-        final entity = PostEntity(
-          id: id,
-          postId: postId,
-          title: title,
-          body: body,
-          ownerId: ownerId,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
-          postReplies: postReplies,
-        );
-
-        return Success(entity);
-      }
-
-      if (includePostlikes) {
-        final [
-          String id,
-          String? postId,
-          String title,
-          String body,
-          String ownerId,
-          DateTime createdAt,
-          DateTime updatedAt,
-          ...
-        ] = row as List;
-
-        final postLikes = result.map(
-          (r) {
-            final [
-              ...,
-              String id,
-              String postId,
-              String userId,
-              DateTime createdAt,
-            ] = r as List;
-
-            return LikeEntity(
-              id: id,
-              postId: postId,
-              userId: userId,
-              createdAt: createdAt,
-            );
-          },
-        ).toList();
-
-        final entity = PostEntity(
-          id: id,
-          postId: postId,
-          title: title,
-          body: body,
-          ownerId: ownerId,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
-          postLikes: postLikes,
-        );
-
-        return Success(entity);
-      }
-
       final [
-        String id,
-        String? postId,
-        String title,
-        String body,
-        String ownerId,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String? $postId,
+        String $content,
+        String $userId,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = PostEntity(
-        id: id,
-        postId: postId,
-        title: title,
-        body: body,
-        ownerId: ownerId,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        postId: $postId,
+        content: $content,
+        userId: $userId,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -1369,15 +1055,9 @@ WHERE
     }
   }
 
-  AsyncResult<PostEntity, Exception> updateOne(
-      UpdateOnePostParams params) async {
+  AsyncResult<PostEntity, Exception> findByPK(String id) async {
     try {
-      if (params.parameters.isEmpty) {
-        return Error(Exception('No data to update!'));
-      }
-
-      final query =
-          'UPDATE tb_posts SET ${List.generate(params.parameters.length, (i) => '${params.parameters.keys.elementAt(i)} = \$${i + 1}').join(', ')} WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
+      String query = r'SELECT * FROM tb_posts WHERE id = $1 LIMIT 1;';
 
       if (verbose) {
         print(
@@ -1385,10 +1065,97 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${[
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
-        ]}');
+        print('PARAMS => $id');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: [id],
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to find data on table `tb_posts`!'));
+      }
+
+      final row = result.first;
+
+      final [
+        String $id,
+        String? $postId,
+        String $content,
+        String $userId,
+        DateTime $createdAt,
+        DateTime $updatedAt,
+      ] = row as List;
+
+      final entity = PostEntity(
+        id: $id,
+        postId: $postId,
+        content: $content,
+        userId: $userId,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<PostEntity, Exception> updateOne({
+    Where? whereId,
+    Where? wherePostId,
+    Where? whereContent,
+    Where? whereUserId,
+    Where? whereCreatedAt,
+    Where? whereUpdatedAt,
+    String? setPostId,
+    String? setContent,
+    String? setUserId,
+    DateTime? setCreatedAt,
+    DateTime? setUpdatedAt,
+  }) async {
+    try {
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (wherePostId != null) 'post_id': wherePostId,
+        if (whereContent != null) 'content': whereContent,
+        if (whereUserId != null) 'user_id': whereUserId,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to update!'));
+      }
+
+      final parameters = <String, dynamic>{
+        if (setPostId != null) 'post_id': setPostId,
+        if (setContent != null) 'content': setContent,
+        if (setUserId != null) 'user_id': setUserId,
+        if (setCreatedAt != null) 'created_at': setCreatedAt,
+        if (setUpdatedAt != null) 'updated_at': setUpdatedAt,
+      };
+
+      if (parameters.isEmpty) {
+        return Error(Exception('No data to update!'));
+      }
+
+      final query =
+          'UPDATE tb_posts SET ${parameters.entries.indexedMap((index, entry) => '${entry.key} = \$${index + 1}').join(', ')} WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1 + parameters.length}').join(' AND ')} RETURNING *;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print(
+            'PARAMS => ${parameters.values.join(', ')}, ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1397,8 +1164,8 @@ WHERE
       final result = await _conn.execute(
         query,
         parameters: [
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
+          ...parameters.values,
+          ...wheres.values.map((w) => w.value)
         ],
       );
 
@@ -1409,23 +1176,21 @@ WHERE
       final row = result.first;
 
       final [
-        String id,
-        String? postId,
-        String title,
-        String body,
-        String ownerId,
-        DateTime createdAt,
-        DateTime updatedAt,
+        String $id,
+        String? $postId,
+        String $content,
+        String $userId,
+        DateTime $createdAt,
+        DateTime $updatedAt,
       ] = row as List;
 
       final entity = PostEntity(
-        id: id,
-        postId: postId,
-        title: title,
-        body: body,
-        ownerId: ownerId,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        id: $id,
+        postId: $postId,
+        content: $content,
+        userId: $userId,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
       );
 
       return Success(entity);
@@ -1434,15 +1199,30 @@ WHERE
     }
   }
 
-  AsyncResult<PostEntity, Exception> deleteOne(
-      DeleteOnePostParams params) async {
+  AsyncResult<PostEntity, Exception> deleteOne({
+    Where? whereId,
+    Where? wherePostId,
+    Where? whereContent,
+    Where? whereUserId,
+    Where? whereCreatedAt,
+    Where? whereUpdatedAt,
+  }) async {
     try {
-      if (params.wheres.isEmpty) {
-        return Error(Exception('No data to delete!'));
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (wherePostId != null) 'post_id': wherePostId,
+        if (whereContent != null) 'content': whereContent,
+        if (whereUserId != null) 'user_id': whereUserId,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to delete!'));
       }
 
       final query =
-          'DELETE FROM tb_posts WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')} RETURNING *;';
+          'DELETE FROM tb_posts WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} RETURNING *;';
 
       if (verbose) {
         print(
@@ -1450,7 +1230,7 @@ WHERE
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1458,7 +1238,7 @@ WHERE
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
 
       if (result.isEmpty) {
@@ -1470,9 +1250,8 @@ WHERE
       final [
         String $id,
         String? $postId,
-        String $title,
-        String $body,
-        String $ownerId,
+        String $content,
+        String $userId,
         DateTime $createdAt,
         DateTime $updatedAt,
       ] = row as List;
@@ -1480,9 +1259,8 @@ WHERE
       final entity = PostEntity(
         id: $id,
         postId: $postId,
-        title: $title,
-        body: $body,
-        ownerId: $ownerId,
+        content: $content,
+        userId: $userId,
         createdAt: $createdAt,
         updatedAt: $updatedAt,
       );
@@ -1494,153 +1272,16 @@ WHERE
   }
 }
 
-class InsertOnePostParams {
-  final String title;
-  final String body;
-  final String ownerId;
-
-  const InsertOnePostParams({
-    required this.title,
-    required this.body,
-    required this.ownerId,
-  });
-
-  List get indexedParams => [
-        title,
-        body,
-        ownerId,
-      ];
-}
-
-class FindManyPostParams {
-  final Where? id;
-  final Where? postId;
-  final Where? title;
-  final Where? body;
-  final Where? ownerId;
-  final Where? createdAt;
-  final Where? updatedAt;
-  final bool includePostreplies;
-  final bool includePostlikes;
-  final int? limit;
-  final int? offset;
-  final OrderBy? orderBy;
-
-  const FindManyPostParams({
-    this.id,
-    this.postId,
-    this.title,
-    this.body,
-    this.ownerId,
-    this.createdAt,
-    this.updatedAt,
-    this.includePostreplies = false,
-    this.includePostlikes = false,
-    this.limit,
-    this.offset,
-    this.orderBy,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (postId != null) 'post_id': postId!,
-        if (title != null) 'title': title!,
-        if (body != null) 'body': body!,
-        if (ownerId != null) 'owner_id': ownerId!,
-        if (createdAt != null) 'created_at': createdAt!,
-        if (updatedAt != null) 'updated_at': updatedAt!,
-      };
-}
-
-class UpdateOnePostParams {
-  final Where? whereId;
-  final Where? wherePostId;
-  final Where? whereTitle;
-  final Where? whereBody;
-  final Where? whereOwnerId;
-  final Where? whereCreatedAt;
-  final Where? whereUpdatedAt;
-  final String? postId;
-  final String? title;
-  final String? body;
-  final String? ownerId;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-
-  const UpdateOnePostParams({
-    this.whereId,
-    this.wherePostId,
-    this.whereTitle,
-    this.whereBody,
-    this.whereOwnerId,
-    this.whereCreatedAt,
-    this.whereUpdatedAt,
-    this.postId,
-    this.title,
-    this.body,
-    this.ownerId,
-    this.createdAt,
-    this.updatedAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (whereId != null) 'id': whereId!,
-        if (wherePostId != null) 'post_id': wherePostId!,
-        if (whereTitle != null) 'title': whereTitle!,
-        if (whereBody != null) 'body': whereBody!,
-        if (whereOwnerId != null) 'owner_id': whereOwnerId!,
-        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
-        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt!,
-      };
-
-  Map<String, dynamic> get parameters => {
-        if (postId != null) 'post_id': postId,
-        if (title != null) 'title': title,
-        if (body != null) 'body': body,
-        if (ownerId != null) 'owner_id': ownerId,
-        if (createdAt != null) 'created_at': createdAt,
-        if (updatedAt != null) 'updated_at': updatedAt,
-      };
-}
-
-class DeleteOnePostParams {
-  final Where? id;
-  final Where? postId;
-  final Where? title;
-  final Where? body;
-  final Where? ownerId;
-  final Where? createdAt;
-  final Where? updatedAt;
-
-  const DeleteOnePostParams({
-    this.id,
-    this.postId,
-    this.title,
-    this.body,
-    this.ownerId,
-    this.createdAt,
-    this.updatedAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (postId != null) 'post_id': postId!,
-        if (title != null) 'title': title!,
-        if (body != null) 'body': body!,
-        if (ownerId != null) 'owner_id': ownerId!,
-        if (createdAt != null) 'created_at': createdAt!,
-        if (updatedAt != null) 'updated_at': updatedAt!,
-      };
-}
-
 class LikesRepository {
   final Connection _conn;
   final bool verbose;
 
   const LikesRepository(this._conn, {this.verbose = false});
 
-  AsyncResult<LikeEntity, Exception> insertOne(
-      InsertOneLikeParams params) async {
+  AsyncResult<LikeEntity, Exception> insertOne({
+    required String postId,
+    required String userId,
+  }) async {
     try {
       final query =
           r'INSERT INTO tb_likes (post_id, user_id) VALUES ($1, $2) RETURNING *;';
@@ -1651,7 +1292,7 @@ class LikesRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.indexedParams}');
+        print('PARAMS => $postId, $userId');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1659,7 +1300,7 @@ class LikesRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.indexedParams,
+        parameters: [postId, userId],
       );
 
       if (result.isEmpty) {
@@ -1669,17 +1310,17 @@ class LikesRepository {
       final row = result.first;
 
       final [
-        String id,
-        String postId,
-        String userId,
-        DateTime createdAt,
+        String $id,
+        String $postId,
+        String $userId,
+        DateTime $createdAt,
       ] = row as List;
 
       final entity = LikeEntity(
-        id: id,
-        postId: postId,
-        userId: userId,
-        createdAt: createdAt,
+        id: $id,
+        postId: $postId,
+        userId: $userId,
+        createdAt: $createdAt,
       );
 
       return Success(entity);
@@ -1688,32 +1329,19 @@ class LikesRepository {
     }
   }
 
-  AsyncResult<List<LikeEntity>, Exception> findMany([
-    FindManyLikeParams params = const FindManyLikeParams(),
-  ]) async {
+  AsyncResult<List<LikeEntity>, Exception> insertMany({
+    required List<({String postId, String userId})> values,
+  }) async {
     try {
-      final where = switch (params.wheres.isEmpty) {
-        true => '',
-        false =>
-          ' WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')}',
-      };
+      if (values.isEmpty) {
+        return Error(Exception('Fail to insert: no data to insert!'));
+      }
 
-      final orderBy = switch (params.orderBy != null) {
-        true => ' ORDER BY ${params.orderBy?.sql}',
-        false => '',
-      };
+      final query =
+          'INSERT INTO tb_likes (post_id, user_id) VALUES ${values.indexedMap((index, value) => '(\$${0 + 1 + (index * 2)}, \$${1 + 1 + (index * 2)})').join(', ')} RETURNING *;';
 
-      final offset = switch (params.offset != null) {
-        true => ' OFFSET ${params.offset}',
-        false => '',
-      };
-
-      final limit = switch (params.limit != null) {
-        true => ' LIMIT ${params.limit}',
-        false => '',
-      };
-
-      final query = 'SELECT * FROM tb_likes$where$orderBy$offset$limit;';
+      final parameters =
+          values.map((v) => [v.postId, v.userId]).expand((v) => v).toList();
 
       if (verbose) {
         print(
@@ -1721,7 +1349,7 @@ class LikesRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => $parameters');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1729,24 +1357,32 @@ class LikesRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: parameters,
       );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to insert data on table `tb_likes`!'));
+      }
+
+      if (result.length != values.length) {
+        return Error(Exception('Fail to insert data on table `tb_likes`!'));
+      }
 
       final entities = List<LikeEntity>.from(
         result.map(
           (row) {
             final [
-              String id,
-              String postId,
-              String userId,
-              DateTime createdAt,
+              String $id,
+              String $postId,
+              String $userId,
+              DateTime $createdAt,
             ] = row as List;
 
             final entity = LikeEntity(
-              id: id,
-              postId: postId,
-              userId: userId,
-              createdAt: createdAt,
+              id: $id,
+              postId: $postId,
+              userId: $userId,
+              createdAt: $createdAt,
             );
 
             return entity;
@@ -1760,7 +1396,153 @@ class LikesRepository {
     }
   }
 
-  AsyncResult<LikeEntity, Exception> findByPK(String pk) async {
+  AsyncResult<List<LikeEntity>, Exception> findMany({
+    Where? id,
+    Where? postId,
+    Where? userId,
+    Where? createdAt,
+    int? limit,
+    int? offset,
+    OrderBy? orderBy,
+  }) async {
+    try {
+      String query = 'SELECT * FROM tb_likes;';
+
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (postId != null) 'post_id': postId,
+        if (userId != null) 'user_id': userId,
+        if (createdAt != null) 'created_at': createdAt,
+      };
+
+      if (wheres.isNotEmpty) {
+        query =
+            'SELECT * FROM tb_likes WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
+      }
+
+      if (offset != null) {
+        query += ' OFFSET $offset';
+      }
+
+      if (limit != null) {
+        query += ' LIMIT $limit';
+      }
+
+      if (orderBy != null) {
+        query += ' ORDER BY ${orderBy.sql}';
+      }
+
+      query += ';';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: wheres.values.map((w) => w.value).toList(),
+      );
+
+      final entities = List<LikeEntity>.from(
+        result.map(
+          (row) {
+            final [
+              String $id,
+              String $postId,
+              String $userId,
+              DateTime $createdAt,
+            ] = row as List;
+
+            return LikeEntity(
+              id: $id,
+              postId: $postId,
+              userId: $userId,
+              createdAt: $createdAt,
+            );
+          },
+        ),
+      );
+
+      return Success(entities);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<LikeEntity, Exception> findOne({
+    Where? id,
+    Where? postId,
+    Where? userId,
+    Where? createdAt,
+  }) async {
+    try {
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (postId != null) 'post_id': postId,
+        if (userId != null) 'user_id': userId,
+        if (createdAt != null) 'created_at': createdAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(
+            Exception('You need to pass at least one where parameter!'));
+      }
+
+      final query =
+          'SELECT * FROM tb_likes WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} LIMIT 1;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: wheres.values.map((w) => w.value).toList(),
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('LikeEntity not found'));
+      }
+
+      final row = result.first;
+
+      final [
+        String $id,
+        String $postId,
+        String $userId,
+        DateTime $createdAt,
+      ] = row as List;
+
+      final entity = LikeEntity(
+        id: $id,
+        postId: $postId,
+        userId: $userId,
+        createdAt: $createdAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<LikeEntity, Exception> findByPK(String id) async {
     try {
       String query = r'SELECT * FROM tb_likes WHERE id = $1 LIMIT 1;';
 
@@ -1770,7 +1552,7 @@ class LikesRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${[pk]}');
+        print('PARAMS => $id');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1778,7 +1560,7 @@ class LikesRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: [pk],
+        parameters: [id],
       );
 
       if (result.isEmpty) {
@@ -1788,17 +1570,17 @@ class LikesRepository {
       final row = result.first;
 
       final [
-        String id,
-        String postId,
-        String userId,
-        DateTime createdAt,
+        String $id,
+        String $postId,
+        String $userId,
+        DateTime $createdAt,
       ] = row as List;
 
       final entity = LikeEntity(
-        id: id,
-        postId: postId,
-        userId: userId,
-        createdAt: createdAt,
+        id: $id,
+        postId: $postId,
+        userId: $userId,
+        createdAt: $createdAt,
       );
 
       return Success(entity);
@@ -1807,15 +1589,39 @@ class LikesRepository {
     }
   }
 
-  AsyncResult<LikeEntity, Exception> updateOne(
-      UpdateOneLikeParams params) async {
+  AsyncResult<LikeEntity, Exception> updateOne({
+    Where? whereId,
+    Where? wherePostId,
+    Where? whereUserId,
+    Where? whereCreatedAt,
+    String? setPostId,
+    String? setUserId,
+    DateTime? setCreatedAt,
+  }) async {
     try {
-      if (params.parameters.isEmpty) {
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (wherePostId != null) 'post_id': wherePostId,
+        if (whereUserId != null) 'user_id': whereUserId,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to update!'));
+      }
+
+      final parameters = <String, dynamic>{
+        if (setPostId != null) 'post_id': setPostId,
+        if (setUserId != null) 'user_id': setUserId,
+        if (setCreatedAt != null) 'created_at': setCreatedAt,
+      };
+
+      if (parameters.isEmpty) {
         return Error(Exception('No data to update!'));
       }
 
       final query =
-          'UPDATE tb_likes SET ${List.generate(params.parameters.length, (i) => '${params.parameters.keys.elementAt(i)} = \$${i + 1}').join(', ')} WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
+          'UPDATE tb_likes SET ${parameters.entries.indexedMap((index, entry) => '${entry.key} = \$${index + 1}').join(', ')} WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1 + parameters.length}').join(' AND ')} RETURNING *;';
 
       if (verbose) {
         print(
@@ -1823,10 +1629,8 @@ class LikesRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${[
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
-        ]}');
+        print(
+            'PARAMS => ${parameters.values.join(', ')}, ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1835,8 +1639,8 @@ class LikesRepository {
       final result = await _conn.execute(
         query,
         parameters: [
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
+          ...parameters.values,
+          ...wheres.values.map((w) => w.value)
         ],
       );
 
@@ -1847,17 +1651,17 @@ class LikesRepository {
       final row = result.first;
 
       final [
-        String id,
-        String postId,
-        String userId,
-        DateTime createdAt,
+        String $id,
+        String $postId,
+        String $userId,
+        DateTime $createdAt,
       ] = row as List;
 
       final entity = LikeEntity(
-        id: id,
-        postId: postId,
-        userId: userId,
-        createdAt: createdAt,
+        id: $id,
+        postId: $postId,
+        userId: $userId,
+        createdAt: $createdAt,
       );
 
       return Success(entity);
@@ -1866,15 +1670,26 @@ class LikesRepository {
     }
   }
 
-  AsyncResult<LikeEntity, Exception> deleteOne(
-      DeleteOneLikeParams params) async {
+  AsyncResult<LikeEntity, Exception> deleteOne({
+    Where? whereId,
+    Where? wherePostId,
+    Where? whereUserId,
+    Where? whereCreatedAt,
+  }) async {
     try {
-      if (params.wheres.isEmpty) {
-        return Error(Exception('No data to delete!'));
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (wherePostId != null) 'post_id': wherePostId,
+        if (whereUserId != null) 'user_id': whereUserId,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to delete!'));
       }
 
       final query =
-          'DELETE FROM tb_likes WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')} RETURNING *;';
+          'DELETE FROM tb_likes WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} RETURNING *;';
 
       if (verbose) {
         print(
@@ -1882,7 +1697,7 @@ class LikesRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -1890,7 +1705,7 @@ class LikesRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
 
       if (result.isEmpty) {
@@ -1920,111 +1735,16 @@ class LikesRepository {
   }
 }
 
-class InsertOneLikeParams {
-  final String postId;
-  final String userId;
-
-  const InsertOneLikeParams({
-    required this.postId,
-    required this.userId,
-  });
-
-  List get indexedParams => [
-        postId,
-        userId,
-      ];
-}
-
-class FindManyLikeParams {
-  final Where? id;
-  final Where? postId;
-  final Where? userId;
-  final Where? createdAt;
-
-  final int? limit;
-  final int? offset;
-  final OrderBy? orderBy;
-
-  const FindManyLikeParams({
-    this.id,
-    this.postId,
-    this.userId,
-    this.createdAt,
-    this.limit,
-    this.offset,
-    this.orderBy,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (postId != null) 'post_id': postId!,
-        if (userId != null) 'user_id': userId!,
-        if (createdAt != null) 'created_at': createdAt!,
-      };
-}
-
-class UpdateOneLikeParams {
-  final Where? whereId;
-  final Where? wherePostId;
-  final Where? whereUserId;
-  final Where? whereCreatedAt;
-  final String? postId;
-  final String? userId;
-  final DateTime? createdAt;
-
-  const UpdateOneLikeParams({
-    this.whereId,
-    this.wherePostId,
-    this.whereUserId,
-    this.whereCreatedAt,
-    this.postId,
-    this.userId,
-    this.createdAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (whereId != null) 'id': whereId!,
-        if (wherePostId != null) 'post_id': wherePostId!,
-        if (whereUserId != null) 'user_id': whereUserId!,
-        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
-      };
-
-  Map<String, dynamic> get parameters => {
-        if (postId != null) 'post_id': postId,
-        if (userId != null) 'user_id': userId,
-        if (createdAt != null) 'created_at': createdAt,
-      };
-}
-
-class DeleteOneLikeParams {
-  final Where? id;
-  final Where? postId;
-  final Where? userId;
-  final Where? createdAt;
-
-  const DeleteOneLikeParams({
-    this.id,
-    this.postId,
-    this.userId,
-    this.createdAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (postId != null) 'post_id': postId!,
-        if (userId != null) 'user_id': userId!,
-        if (createdAt != null) 'created_at': createdAt!,
-      };
-}
-
 class FollowersRepository {
   final Connection _conn;
   final bool verbose;
 
   const FollowersRepository(this._conn, {this.verbose = false});
 
-  AsyncResult<FollowerEntity, Exception> insertOne(
-      InsertOneFollowerParams params) async {
+  AsyncResult<FollowerEntity, Exception> insertOne({
+    required String followerId,
+    required String followingId,
+  }) async {
     try {
       final query =
           r'INSERT INTO tb_followers (follower_id, following_id) VALUES ($1, $2) RETURNING *;';
@@ -2035,7 +1755,7 @@ class FollowersRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.indexedParams}');
+        print('PARAMS => $followerId, $followingId');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -2043,7 +1763,7 @@ class FollowersRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.indexedParams,
+        parameters: [followerId, followingId],
       );
 
       if (result.isEmpty) {
@@ -2053,17 +1773,17 @@ class FollowersRepository {
       final row = result.first;
 
       final [
-        String id,
-        String followerId,
-        String followingId,
-        DateTime createdAt,
+        String $id,
+        String $followerId,
+        String $followingId,
+        DateTime $createdAt,
       ] = row as List;
 
       final entity = FollowerEntity(
-        id: id,
-        followerId: followerId,
-        followingId: followingId,
-        createdAt: createdAt,
+        id: $id,
+        followerId: $followerId,
+        followingId: $followingId,
+        createdAt: $createdAt,
       );
 
       return Success(entity);
@@ -2072,32 +1792,21 @@ class FollowersRepository {
     }
   }
 
-  AsyncResult<List<FollowerEntity>, Exception> findMany([
-    FindManyFollowerParams params = const FindManyFollowerParams(),
-  ]) async {
+  AsyncResult<List<FollowerEntity>, Exception> insertMany({
+    required List<({String followerId, String followingId})> values,
+  }) async {
     try {
-      final where = switch (params.wheres.isEmpty) {
-        true => '',
-        false =>
-          ' WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')}',
-      };
+      if (values.isEmpty) {
+        return Error(Exception('Fail to insert: no data to insert!'));
+      }
 
-      final orderBy = switch (params.orderBy != null) {
-        true => ' ORDER BY ${params.orderBy?.sql}',
-        false => '',
-      };
+      final query =
+          'INSERT INTO tb_followers (follower_id, following_id) VALUES ${values.indexedMap((index, value) => '(\$${0 + 1 + (index * 2)}, \$${1 + 1 + (index * 2)})').join(', ')} RETURNING *;';
 
-      final offset = switch (params.offset != null) {
-        true => ' OFFSET ${params.offset}',
-        false => '',
-      };
-
-      final limit = switch (params.limit != null) {
-        true => ' LIMIT ${params.limit}',
-        false => '',
-      };
-
-      final query = 'SELECT * FROM tb_followers$where$orderBy$offset$limit;';
+      final parameters = values
+          .map((v) => [v.followerId, v.followingId])
+          .expand((v) => v)
+          .toList();
 
       if (verbose) {
         print(
@@ -2105,7 +1814,7 @@ class FollowersRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => $parameters');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -2113,24 +1822,32 @@ class FollowersRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: parameters,
       );
+
+      if (result.isEmpty) {
+        return Error(Exception('Fail to insert data on table `tb_followers`!'));
+      }
+
+      if (result.length != values.length) {
+        return Error(Exception('Fail to insert data on table `tb_followers`!'));
+      }
 
       final entities = List<FollowerEntity>.from(
         result.map(
           (row) {
             final [
-              String id,
-              String followerId,
-              String followingId,
-              DateTime createdAt,
+              String $id,
+              String $followerId,
+              String $followingId,
+              DateTime $createdAt,
             ] = row as List;
 
             final entity = FollowerEntity(
-              id: id,
-              followerId: followerId,
-              followingId: followingId,
-              createdAt: createdAt,
+              id: $id,
+              followerId: $followerId,
+              followingId: $followingId,
+              createdAt: $createdAt,
             );
 
             return entity;
@@ -2144,7 +1861,153 @@ class FollowersRepository {
     }
   }
 
-  AsyncResult<FollowerEntity, Exception> findByPK(String pk) async {
+  AsyncResult<List<FollowerEntity>, Exception> findMany({
+    Where? id,
+    Where? followerId,
+    Where? followingId,
+    Where? createdAt,
+    int? limit,
+    int? offset,
+    OrderBy? orderBy,
+  }) async {
+    try {
+      String query = 'SELECT * FROM tb_followers;';
+
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (followerId != null) 'follower_id': followerId,
+        if (followingId != null) 'following_id': followingId,
+        if (createdAt != null) 'created_at': createdAt,
+      };
+
+      if (wheres.isNotEmpty) {
+        query =
+            'SELECT * FROM tb_followers WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
+      }
+
+      if (offset != null) {
+        query += ' OFFSET $offset';
+      }
+
+      if (limit != null) {
+        query += ' LIMIT $limit';
+      }
+
+      if (orderBy != null) {
+        query += ' ORDER BY ${orderBy.sql}';
+      }
+
+      query += ';';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: wheres.values.map((w) => w.value).toList(),
+      );
+
+      final entities = List<FollowerEntity>.from(
+        result.map(
+          (row) {
+            final [
+              String $id,
+              String $followerId,
+              String $followingId,
+              DateTime $createdAt,
+            ] = row as List;
+
+            return FollowerEntity(
+              id: $id,
+              followerId: $followerId,
+              followingId: $followingId,
+              createdAt: $createdAt,
+            );
+          },
+        ),
+      );
+
+      return Success(entities);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<FollowerEntity, Exception> findOne({
+    Where? id,
+    Where? followerId,
+    Where? followingId,
+    Where? createdAt,
+  }) async {
+    try {
+      final wheres = <String, Where>{
+        if (id != null) 'id': id,
+        if (followerId != null) 'follower_id': followerId,
+        if (followingId != null) 'following_id': followingId,
+        if (createdAt != null) 'created_at': createdAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(
+            Exception('You need to pass at least one where parameter!'));
+      }
+
+      final query =
+          'SELECT * FROM tb_followers WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} LIMIT 1;';
+
+      if (verbose) {
+        print(
+            '--------------------------------------------------------------------------------');
+
+        print('SQL => $query');
+
+        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+
+        print(
+            '--------------------------------------------------------------------------------');
+      }
+
+      final result = await _conn.execute(
+        query,
+        parameters: wheres.values.map((w) => w.value).toList(),
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('FollowerEntity not found'));
+      }
+
+      final row = result.first;
+
+      final [
+        String $id,
+        String $followerId,
+        String $followingId,
+        DateTime $createdAt,
+      ] = row as List;
+
+      final entity = FollowerEntity(
+        id: $id,
+        followerId: $followerId,
+        followingId: $followingId,
+        createdAt: $createdAt,
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }
+
+  AsyncResult<FollowerEntity, Exception> findByPK(String id) async {
     try {
       String query = r'SELECT * FROM tb_followers WHERE id = $1 LIMIT 1;';
 
@@ -2154,7 +2017,7 @@ class FollowersRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${[pk]}');
+        print('PARAMS => $id');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -2162,7 +2025,7 @@ class FollowersRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: [pk],
+        parameters: [id],
       );
 
       if (result.isEmpty) {
@@ -2172,17 +2035,17 @@ class FollowersRepository {
       final row = result.first;
 
       final [
-        String id,
-        String followerId,
-        String followingId,
-        DateTime createdAt,
+        String $id,
+        String $followerId,
+        String $followingId,
+        DateTime $createdAt,
       ] = row as List;
 
       final entity = FollowerEntity(
-        id: id,
-        followerId: followerId,
-        followingId: followingId,
-        createdAt: createdAt,
+        id: $id,
+        followerId: $followerId,
+        followingId: $followingId,
+        createdAt: $createdAt,
       );
 
       return Success(entity);
@@ -2191,15 +2054,39 @@ class FollowersRepository {
     }
   }
 
-  AsyncResult<FollowerEntity, Exception> updateOne(
-      UpdateOneFollowerParams params) async {
+  AsyncResult<FollowerEntity, Exception> updateOne({
+    Where? whereId,
+    Where? whereFollowerId,
+    Where? whereFollowingId,
+    Where? whereCreatedAt,
+    String? setFollowerId,
+    String? setFollowingId,
+    DateTime? setCreatedAt,
+  }) async {
     try {
-      if (params.parameters.isEmpty) {
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (whereFollowerId != null) 'follower_id': whereFollowerId,
+        if (whereFollowingId != null) 'following_id': whereFollowingId,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to update!'));
+      }
+
+      final parameters = <String, dynamic>{
+        if (setFollowerId != null) 'follower_id': setFollowerId,
+        if (setFollowingId != null) 'following_id': setFollowingId,
+        if (setCreatedAt != null) 'created_at': setCreatedAt,
+      };
+
+      if (parameters.isEmpty) {
         return Error(Exception('No data to update!'));
       }
 
       final query =
-          'UPDATE tb_followers SET ${List.generate(params.parameters.length, (i) => '${params.parameters.keys.elementAt(i)} = \$${i + 1}').join(', ')} WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
+          'UPDATE tb_followers SET ${parameters.entries.indexedMap((index, entry) => '${entry.key} = \$${index + 1}').join(', ')} WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1 + parameters.length}').join(' AND ')} RETURNING *;';
 
       if (verbose) {
         print(
@@ -2207,10 +2094,8 @@ class FollowersRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${[
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
-        ]}');
+        print(
+            'PARAMS => ${parameters.values.join(', ')}, ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -2219,8 +2104,8 @@ class FollowersRepository {
       final result = await _conn.execute(
         query,
         parameters: [
-          ...params.parameters.values,
-          ...params.wheres.values.map((w) => w.value)
+          ...parameters.values,
+          ...wheres.values.map((w) => w.value)
         ],
       );
 
@@ -2231,17 +2116,17 @@ class FollowersRepository {
       final row = result.first;
 
       final [
-        String id,
-        String followerId,
-        String followingId,
-        DateTime createdAt,
+        String $id,
+        String $followerId,
+        String $followingId,
+        DateTime $createdAt,
       ] = row as List;
 
       final entity = FollowerEntity(
-        id: id,
-        followerId: followerId,
-        followingId: followingId,
-        createdAt: createdAt,
+        id: $id,
+        followerId: $followerId,
+        followingId: $followingId,
+        createdAt: $createdAt,
       );
 
       return Success(entity);
@@ -2250,15 +2135,26 @@ class FollowersRepository {
     }
   }
 
-  AsyncResult<FollowerEntity, Exception> deleteOne(
-      DeleteOneFollowerParams params) async {
+  AsyncResult<FollowerEntity, Exception> deleteOne({
+    Where? whereId,
+    Where? whereFollowerId,
+    Where? whereFollowingId,
+    Where? whereCreatedAt,
+  }) async {
     try {
-      if (params.wheres.isEmpty) {
-        return Error(Exception('No data to delete!'));
+      final wheres = <String, Where>{
+        if (whereId != null) 'id': whereId,
+        if (whereFollowerId != null) 'follower_id': whereFollowerId,
+        if (whereFollowingId != null) 'following_id': whereFollowingId,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt,
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to delete!'));
       }
 
       final query =
-          'DELETE FROM tb_followers WHERE ${List.generate(params.wheres.length, (i) => '${params.wheres.keys.elementAt(i)} ${params.wheres.values.elementAt(i).op} \$${i + 1}').join(' AND ')} RETURNING *;';
+          'DELETE FROM tb_followers WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} RETURNING *;';
 
       if (verbose) {
         print(
@@ -2266,7 +2162,7 @@ class FollowersRepository {
 
         print('SQL => $query');
 
-        print('PARAMS => ${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => ${wheres.values.map((w) => w.value).join(', ')}');
 
         print(
             '--------------------------------------------------------------------------------');
@@ -2274,7 +2170,7 @@ class FollowersRepository {
 
       final result = await _conn.execute(
         query,
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
 
       if (result.isEmpty) {
@@ -2302,101 +2198,4 @@ class FollowersRepository {
       return Error(e);
     }
   }
-}
-
-class InsertOneFollowerParams {
-  final String followerId;
-  final String followingId;
-
-  const InsertOneFollowerParams({
-    required this.followerId,
-    required this.followingId,
-  });
-
-  List get indexedParams => [
-        followerId,
-        followingId,
-      ];
-}
-
-class FindManyFollowerParams {
-  final Where? id;
-  final Where? followerId;
-  final Where? followingId;
-  final Where? createdAt;
-
-  final int? limit;
-  final int? offset;
-  final OrderBy? orderBy;
-
-  const FindManyFollowerParams({
-    this.id,
-    this.followerId,
-    this.followingId,
-    this.createdAt,
-    this.limit,
-    this.offset,
-    this.orderBy,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (followerId != null) 'follower_id': followerId!,
-        if (followingId != null) 'following_id': followingId!,
-        if (createdAt != null) 'created_at': createdAt!,
-      };
-}
-
-class UpdateOneFollowerParams {
-  final Where? whereId;
-  final Where? whereFollowerId;
-  final Where? whereFollowingId;
-  final Where? whereCreatedAt;
-  final String? followerId;
-  final String? followingId;
-  final DateTime? createdAt;
-
-  const UpdateOneFollowerParams({
-    this.whereId,
-    this.whereFollowerId,
-    this.whereFollowingId,
-    this.whereCreatedAt,
-    this.followerId,
-    this.followingId,
-    this.createdAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (whereId != null) 'id': whereId!,
-        if (whereFollowerId != null) 'follower_id': whereFollowerId!,
-        if (whereFollowingId != null) 'following_id': whereFollowingId!,
-        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
-      };
-
-  Map<String, dynamic> get parameters => {
-        if (followerId != null) 'follower_id': followerId,
-        if (followingId != null) 'following_id': followingId,
-        if (createdAt != null) 'created_at': createdAt,
-      };
-}
-
-class DeleteOneFollowerParams {
-  final Where? id;
-  final Where? followerId;
-  final Where? followingId;
-  final Where? createdAt;
-
-  const DeleteOneFollowerParams({
-    this.id,
-    this.followerId,
-    this.followingId,
-    this.createdAt,
-  });
-
-  Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
-        if (followerId != null) 'follower_id': followerId!,
-        if (followingId != null) 'following_id': followingId!,
-        if (createdAt != null) 'created_at': createdAt!,
-      };
 }

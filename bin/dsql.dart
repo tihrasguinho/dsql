@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -5,8 +6,9 @@ import 'package:path/path.dart' as p;
 import 'package:postgres/postgres.dart' hide Type;
 import 'package:strings/strings.dart';
 
-final regFk1 = RegExp(r'^CONSTRAINT\s(\w+)\sFOREIGN\sKEY\s\((\w+)\)\sREFERENCES\s(\w+)\s\((\w+)\)');
-final regFk2 = RegExp(r'REFERENCES\s(\w+)\s?\((\w+)\)');
+final _regFk1 = RegExp(r'^CONSTRAINT\s(\w+)\sFOREIGN\sKEY\s\((\w+)\)\sREFERENCES\s(\w+)\s\((\w+)\)');
+final _regFk2 = RegExp(r'REFERENCES\s(\w+)\s?\((\w+)\)');
+final _regTb = RegExp(r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
 
 void main(List<String> args) async {
   final parser = ArgParser()
@@ -16,6 +18,8 @@ void main(List<String> args) async {
     ..addFlag('generate', abbr: 'g', help: 'Generate the dart files from the sql files!', negatable: false);
 
   final results = parser.parse(args);
+
+  final root = Directory.current;
 
   Directory input, output;
 
@@ -42,114 +46,164 @@ void main(List<String> args) async {
   }
 
   if (results.flag('migrate')) {
-    while (true) {
-      stdout.writeln('Welcome to the DSQL migration tool!');
-      stdout.writeln();
-      stdout.writeln('This tool will help you to migrate your database using DSQL.');
-      stdout.writeln();
-      stdout.write('Press ENTER to continue...');
-      stdin.readLineSync();
-      stdout.writeln();
-      stdout.write('First set the PostgreSQL url: ');
-      final url = stdin.readLineSync();
-      stdout.writeln();
-      if (url == null || url.isEmpty) {
-        _showUriError();
-        continue;
-      }
-      final uri = Uri.parse(url);
-      final host = uri.host;
-      final port = uri.hasPort ? uri.port : 5432;
-      if (!uri.hasAuthority || uri.userInfo.isEmpty || uri.pathSegments.isEmpty) {
-        _showUriError();
-        continue;
-      }
-      final user = uri.userInfo.split(':')[0];
-      final password = uri.userInfo.split(':')[1];
-      final database = uri.pathSegments.first;
-      final ssl = uri.queryParameters['sslmode'] == 'require';
-      stdout.writeln('Looking for migrations...');
-      if (!input.existsSync()) {
-        _showOutputError(p.relative(input.path, from: Directory.current.path));
-        exit(0);
-      }
-      final files = input.listSync(recursive: true).where((f) => p.extension(f.path) == '.sql');
-      if (files.isEmpty) {
-        _showFilesError(p.relative(input.path, from: Directory.current.path));
-        exit(0);
-      }
-      stdout.writeln();
-      stdout.writeln('-' * 80);
-      stdout.writeln('${files.length} migrations found');
-      stdout.writeln('-' * 80);
-      for (final file in files) {
-        stdout.writeln('  - ${p.relative(file.path, from: input.path)}');
-      }
-      stdout.writeln('-' * 80);
-      stdout.writeln();
-      stdout.writeln('Connecting to database...');
-      stdout.writeln();
-      try {
-        final conn = await Connection.open(
-          Endpoint(
-            host: host,
-            database: database,
-            username: user,
-            password: password,
-            port: port,
-          ),
-          settings: ConnectionSettings(sslMode: ssl ? SslMode.require : SslMode.disable),
-        );
-
-        final migrations = files.map((file) => File(file.path).readAsStringSync());
-
-        stdout.writeln('Migrating database...');
-
-        stdout.writeln();
-
-        await conn.runTx(
-          (tx) async {
-            for (final m in migrations) {
-              try {
-                await tx.execute(m, queryMode: QueryMode.simple);
-              } on Exception catch (e) {
-                _showExceptionError(e);
-                await tx.rollback();
-              }
-            }
-          },
-        );
-      } on Exception catch (e) {
-        _showExceptionError(e);
-        exit(0);
-      }
-      stdout.writeln('Done!');
-      stdout.writeln();
-      stdout.write('Press ENTER to continue...');
-      stdin.readLineSync();
-      exit(0);
-    }
+    return _migrate(root, input, output);
   } else if (results.flag('generate')) {
-    _clearConsole();
-    stdout.writeln('Generating dart files...');
-    stdout.writeln();
-    _generateDartFiles(input, output);
-    stdout.writeln('Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
-    stdout.writeln();
-    stdout.write('Press ENTER to exit...');
-    stdin.readLineSync();
-    exit(0);
+    return _generate(input, output);
   } else {
-    _clearConsole();
-    stdout.writeln('Wrong arguments!');
-    stdout.writeln();
-    stdout.write('Press ENTER to exit...');
-    stdin.readLineSync();
+    stdout.writeln('Wrong arguments, please see --help!');
     exit(0);
   }
 }
 
-void _generateDartFiles(Directory input, Directory output) {
+void _migrate(Directory root, Directory input, Directory output) async {
+  String source;
+  final env = File(p.join(root.path, '.env'));
+  if (env.existsSync()) {
+    final lines = env.readAsLinesSync().where((l) => l.isNotEmpty).toList();
+    final index = lines.indexWhere(RegExp(r'^DATABASE_URL=').hasMatch);
+    if (index == -1) {
+      source = String.fromEnvironment('DATABASE_URL');
+    } else {
+      final line = lines[index].split('DATABASE_URL=')[1];
+      source = line.replaceAll('"', '').trim();
+    }
+  } else {
+    source = String.fromEnvironment('DATABASE_URL');
+  }
+
+  if (source.isEmpty) {
+    _showUriError('Missing DATABASE_URL environment variable!');
+    exit(0);
+  }
+
+  final uri = Uri.parse(source);
+
+  final host = uri.host;
+  final port = uri.hasPort ? uri.port : 5432;
+  if (!uri.hasAuthority || uri.userInfo.isEmpty || uri.pathSegments.isEmpty) {
+    _showUriError('Invalid DATABASE_URL!');
+    exit(0);
+  }
+  final user = uri.userInfo.split(':')[0];
+  final password = uri.userInfo.split(':')[1];
+  final database = uri.pathSegments.first;
+  final schema = uri.queryParameters['schema'] ?? 'public';
+  final ssl = uri.queryParameters['sslmode'] == 'require';
+
+  if (!input.existsSync()) {
+    _showOutputError(p.relative(input.path, from: Directory.current.path));
+    exit(0);
+  }
+  final files = input.listSync(recursive: true).where((f) => p.extension(f.path) == '.sql');
+  if (files.isEmpty) {
+    _showFilesError(p.relative(input.path, from: Directory.current.path));
+    exit(0);
+  }
+  try {
+    final conn = await Connection.open(
+      Endpoint(
+        host: host,
+        database: database,
+        username: user,
+        password: password,
+        port: port,
+      ),
+      settings: ConnectionSettings(
+        sslMode: ssl ? SslMode.require : SslMode.disable,
+        onOpen: (connection) async {
+          await connection.execute('SET search_path TO $schema;');
+        },
+      ),
+    );
+
+    final migrations = files.map((file) => File(file.path).readAsLinesSync().join('\n'));
+
+    final newTables = migrations.map(_regTb.allMatches).expand((m) => m).fold(
+      <String, String>{},
+      (prev, next) {
+        final table = next.group(2)!;
+
+        return {...prev, table: next.group(0)!};
+      },
+    );
+
+    await conn.runTx(
+      (tx) async {
+        final checkResult = await tx.execute(
+          r'SELECT EXISTS(SELECT FROM pg_tables WHERE schemaname = $1 AND tablename = $2);',
+          parameters: [schema, '__migrations'],
+        );
+
+        final check = checkResult.first.first as bool;
+
+        if (check) {
+          final last = await tx.execute('SELECT * FROM __migrations ORDER BY created_at DESC LIMIT 1;');
+
+          if (last.isNotEmpty) {
+            final [
+              int _,
+              Map<String, dynamic> oldTables,
+              DateTime _,
+            ] = last.first as List;
+
+            if (!_mapEquals(newTables, oldTables)) {
+              stdout.writeln('Updating...');
+
+              final tablesResult = await tx.execute(
+                r'SELECT tablename FROM pg_tables WHERE schemaname = $1 AND tablename != $2;',
+                parameters: [schema, '__migrations'],
+              );
+
+              for (final name in tablesResult.map((r) => r.join(', ')).toList()) {
+                await tx.execute('DROP TABLE IF EXISTS $name CASCADE;');
+              }
+
+              final insertMigration = await tx.execute(
+                r'INSERT INTO __migrations (tables) VALUES ($1) RETURNING id;',
+                parameters: [jsonEncode(newTables)],
+              );
+
+              await tx.execute(migrations.join('\n'), queryMode: QueryMode.simple);
+
+              stdout.writeln('Updated, the current version is ${insertMigration.first.first as int}!');
+            } else {
+              stdout.writeln('Nothing to do, the current version is ${last.first.first as int}!');
+            }
+          } else {
+            stdout.writeln('Updating...');
+
+            final insertMigration = await tx.execute(
+              r'INSERT INTO __migrations (schema) VALUES ($1);',
+              parameters: [jsonEncode(newTables)],
+            );
+
+            await tx.execute(migrations.join('\n'), queryMode: QueryMode.simple);
+
+            stdout.writeln('Updated, the current version is ${insertMigration.first.first as int}!');
+          }
+        } else {
+          await tx.execute('CREATE TABLE __migrations (id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tables JSONB NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW());');
+
+          await tx.execute(
+            r'INSERT INTO __migrations (tables) VALUES ($1);',
+            parameters: [jsonEncode(newTables)],
+          );
+
+          await tx.execute(migrations.join('\n'), queryMode: QueryMode.simple);
+
+          stdout.writeln('Created, the current version is 1!');
+        }
+      },
+    );
+    await conn.close();
+    return _generate(input, output);
+  } on Exception catch (e) {
+    _showExceptionError(e);
+    exit(0);
+  }
+}
+
+void _generate(Directory input, Directory output) {
   final entitiesBuffer = StringBuffer();
 
   final queriesBuffer = StringBuffer();
@@ -165,10 +219,8 @@ void _generateDartFiles(Directory input, Directory output) {
 
     final content = file.readAsLinesSync().join('\n');
 
-    final regex = RegExp(r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
-
     tables.addAll(
-      regex.allMatches(content).map(
+      _regTb.allMatches(content).map(
             (match) => _Table(
               entity: match.group(1)!,
               name: match.group(2)!,
@@ -182,8 +234,8 @@ void _generateDartFiles(Directory input, Directory output) {
     _Table table = tables[i];
 
     for (final line in table.lines) {
-      final match1 = regFk1.firstMatch(line);
-      final match2 = regFk2.firstMatch(line);
+      final match1 = _regFk1.firstMatch(line);
+      final match2 = _regFk2.firstMatch(line);
 
       if (match1 != null) {
         final constraintRef = match1.group(1);
@@ -234,6 +286,10 @@ void _generateDartFiles(Directory input, Directory output) {
   dsql.writeAsStringSync(_dsqlImportsBuilder(queriesBuffer.toString()));
 
   _format(output);
+
+  stdout.writeln('Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
+
+  exit(0);
 }
 
 String _fieldName(String col) {
@@ -362,7 +418,11 @@ ${tables.map(
 
   ${_insertOneBuilder(table)}
 
+  ${_insertManyBuilder(table)}
+
   ${_findManyBuilder(table)}
+
+  ${_findOneBuilder(table)}
 
   ${_findByPkBuilder(table)}
 
@@ -371,16 +431,7 @@ ${tables.map(
   ${_updateOneBuilder(table)}
 
   ${_deleteOneBuilder(table)}
-}
-
-${_insertOneParamsBuilder(table)}
-
-${_findManyParamsBuilder(table)}
-
-${_updateOneParamsBuilder(table)}
-
-${_deleteOneParamsBuilder(table)}
-''';
+}''';
     queries.add(content);
   }
 
@@ -482,38 +533,26 @@ ${table.references.entries.map(
   return entities.join('\n\n');
 }
 
-String _insertOneParamsBuilder(_Table table) {
-  return '''class InsertOne${table.rawEntityName}Params {
-  ${table.columns.where((c) => _isRequired(c)).map((c) => 'final ${_fieldType(c)} ${_fieldName(c)};').join('\n')}
-
-  const InsertOne${table.rawEntityName}Params({
-  ${table.columns.where((c) => _isRequired(c)).map((c) => 'required this.${_fieldName(c)},').join('\n')}
-  });
-
-  List get indexedParams => [
-  ${table.columns.where((c) => _isRequired(c)).map((c) => '${_fieldName(c)},').join('\n')}
-  ];
-}''';
-}
-
 String _insertOneBuilder(_Table table) {
-  return '''AsyncResult<${table.entity}, Exception> insertOne(InsertOne${table.rawEntityName}Params params) async {
+  return '''AsyncResult<${table.entity}, Exception> insertOne({
+${table.columns.where((c) => _isRequired(c)).map((c) => 'required ${_fieldType(c)} ${_fieldName(c)},').join('\n')}
+  }) async {
     try {
-      final query = r'INSERT INTO ${table.name} (${table.columns.where((c) => _isRequired(c)).map((c) => _fieldName(c).toSnakeCase()).join(', ')}) VALUES (${List.generate(table.columns.where((c) => _isRequired(c)).length, (i) => '\$${i + 1}').join(', ')}) RETURNING *;';
+      final query = r'INSERT INTO ${table.name} (${table.columns.where((c) => _isRequired(c)).map((c) => _fieldName(c).toSnakeCase()).join(', ')}) VALUES (${table.columns.where((c) => _isRequired(c)).indexedMap((i, c) => '\$${i + 1}').join(', ')}) RETURNING *;';
 
       if (verbose) {
         print('${'-' * 80}');
 
         print('SQL => \$query');
 
-        print('PARAMS => \${params.indexedParams}');
+        print('PARAMS => ${table.columns.where((c) => _isRequired(c)).map((c) => '\$${_fieldName(c)}').join(', ')}');
 
         print('${'-' * 80}');
       }
 
       final result = await _conn.execute(
           query,
-          parameters: params.indexedParams,
+          parameters: [${table.columns.where((c) => _isRequired(c)).map((c) => ' ${_fieldName(c)}').join(', ')}],
       );
 
       if (result.isEmpty) {
@@ -523,11 +562,11 @@ String _insertOneBuilder(_Table table) {
       final row = result.first;
 
       final [
-${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
       ] = row as List;
 
       final entity = ${table.entity}(
-${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
       );
 
       return Success(entity);
@@ -537,82 +576,118 @@ ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
   }''';
 }
 
-String _findManyParamsBuilder(_Table table) {
-  return '''class FindMany${table.rawEntityName}Params {
-  ${table.columns.map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
-  ${table.references.entries.map((entry) => 'final bool include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()};').join('\n')}
-  final int? limit;
-  final int? offset;
-  final OrderBy? orderBy;
+String _insertManyBuilder(_Table table) {
+  return '''AsyncResult<List<${table.entity}>, Exception> insertMany({
+required List<({${table.columns.where((c) => _isRequired(c)).map((c) => '${_fieldType(c)} ${_fieldName(c)}').join(', ')}})> values,
+  }) async {
+  try {
+    if (values.isEmpty) {
+      return Error(Exception('Fail to insert: no data to insert!'));
+    }
 
-  const FindMany${table.rawEntityName}Params({
-    ${table.columns.map((c) => 'this.${_fieldName(c)},').join('\n')}
-    ${table.references.entries.map((entry) => 'this.include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()} = false,').join('\n')}
-    this.limit,
-    this.offset,
-    this.orderBy,
-  });
+    final query = 'INSERT INTO ${table.name} (${table.columns.where((c) => _isRequired(c)).map((c) => _fieldName(c).toSnakeCase()).join(', ')}) VALUES \${values.indexedMap((index, value) => '(${table.columns.where((c) => _isRequired(c)).indexedMap((i, c) => '\\\$\${$i + 1 + (index * ${table.columns.where((c) => _isRequired(c)).length})}').join(', ')})').join(', ')} RETURNING *;';
 
-  Map<String, Where> get wheres => {
-    ${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}!,').join('\n')}
-  };
-}''';
+    final parameters = values.map((v) => [${table.columns.where((c) => _isRequired(c)).map((value) => 'v.${_fieldName(value)}').join(', ')}]).expand((v) => v).toList();
+
+    if (verbose) {
+      print('${'-' * 80}');
+
+      print('SQL => \$query');
+
+      print('PARAMS => \$parameters');
+
+      print('${'-' * 80}');
+    }
+
+    final result = await _conn.execute(
+      query,
+      parameters: parameters,
+    );
+
+    if (result.isEmpty) {
+      return Error(Exception('Fail to insert data on table `${table.name}`!'));
+    }
+
+    if (result.length != values.length) {
+      return Error(Exception('Fail to insert data on table `${table.name}`!'));
+    }
+
+    final entities = List<${table.entity}>.from(
+        result.map((row) {
+          final [
+  ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
+          ] = row as List;
+
+          final entity = ${table.entity}(
+  ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
+          );
+
+          return entity;
+        },
+      ),
+    );
+
+    return Success(entities);
+  } on Exception catch (e) {
+    return Error(e);
+  }
+  }''';
 }
 
 String _findManyBuilder(_Table table) {
-  return '''AsyncResult<List<${table.entity}>, Exception> findMany([
-    FindMany${table.rawEntityName}Params params = const FindMany${table.rawEntityName}Params(),
-  ]) async {
+  return '''AsyncResult<List<${table.entity}>, Exception> findMany({
+  ${table.columns.map((c) => 'Where? ${_fieldName(c)},').join('\n')}
+  int? limit,
+  int? offset,
+  OrderBy? orderBy,
+  }) async {
     try {
-      final where = switch (params.wheres.isEmpty) {
-        true => '',
-        false => ' WHERE \${List.generate(params.wheres.length, (i) => '\${params.wheres.keys.elementAt(i)} \${params.wheres.values.elementAt(i).op} \\\$\${i + 1}').join(' AND ')}',
+      String query = 'SELECT * FROM ${table.name};';
+
+      final wheres = <String, Where>{
+${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
       };
 
-      final orderBy = switch (params.orderBy != null) {
-        true => ' ORDER BY \${params.orderBy?.sql}',
-        false => '',
-      };
+      if (wheres.isNotEmpty) {
+        query = 'SELECT * FROM ${table.name} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}';
+      }
 
-      final offset = switch (params.offset != null) {
-        true => ' OFFSET \${params.offset}',
-        false => '',
-      };
+      if (offset != null) {
+        query += ' OFFSET \$offset';
+      }
 
-      final limit = switch (params.limit != null) {
-        true => ' LIMIT \${params.limit}',
-        false => '',
-      };
+      if (limit != null) {
+        query += ' LIMIT \$limit';
+      }
 
-      final query = 'SELECT * FROM ${table.name}\$where\$orderBy\$offset\$limit;';
+      if (orderBy != null) {
+        query += ' ORDER BY \${orderBy.sql}';
+      }
+
+      query += ';';
 
       if (verbose) {
         print('${'-' * 80}');
 
         print('SQL => \$query');
 
-        print('PARAMS => \${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => \${wheres.values.map((w) => w.value).toList()}');
 
         print('${'-' * 80}');
       }
 
       final result = await _conn.execute(
         query, 
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
 
       final entities = List<${table.entity}>.from(
-        result.map(
-          (row) {
-            final [
-${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
-            ] = row as List;
-
-            final entity = ${table.entity}(
-${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+        result.map((row) {
+            final [${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}] = row as List;
+            
+            return ${table.entity}(
+              ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
             );
-
-            return entity;
           },
         ),
       );
@@ -624,59 +699,77 @@ ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
   }''';
 }
 
+String _findOneBuilder(_Table table) {
+  return '''AsyncResult<${table.entity}, Exception> findOne({
+  ${table.columns.map((c) => 'Where? ${_fieldName(c)},').join('\n')}
+  }) async {
+    try {
+      final wheres = <String, Where>{
+${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('You need to pass at least one where parameter!'));
+      }
+
+      final query = 'SELECT * FROM ${table.name} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')} LIMIT 1;';
+
+      if (verbose) {
+        print('${'-' * 80}');
+
+        print('SQL => \$query');
+
+        print('PARAMS => \${wheres.values.map((w) => w.value).toList()}');
+
+        print('${'-' * 80}');
+      }
+
+      final result = await _conn.execute(
+        query, 
+        parameters: wheres.values.map((w) => w.value).toList(),
+      );
+
+      if (result.isEmpty) {
+        return Error(Exception('${table.entity} not found'));
+      }
+
+      final row = result.first;
+
+      final [${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}] = row as List;
+            
+      final entity = ${table.entity}(
+        ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
+      );
+
+      return Success(entity);
+    } on Exception catch (e) {
+      return Error(e);
+    }
+  }''';
+}
+
 String _findByPkBuilder(_Table table) {
   return switch (_hasPrimaryKey(table.columns)) {
     false => '',
     true => '''AsyncResult<${table.entity}, Exception> findByPK(
-    ${_getPkType(table.columns)} pk
-    ${table.references.isNotEmpty ? ',{${table.references.entries.map(
-          (entry) {
-            return 'bool include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()} = false,';
-          },
-        ).join('\n')}}' : ''}
+    ${_getPkType(table.columns)} ${_getPkName(table.columns)}
   ) async {
   try {
-    String query = r'SELECT * FROM ${table.name} WHERE ${_getPkName(table.columns)} = \$1 LIMIT 1;';
-
-    ${table.references.entries.map(
-        (entry) {
-          final first = switch (table.name == entry.value.name || table.nameWithoutPrefixTB[0] == entry.value.nameWithoutPrefixTB[0]) {
-            true => '${table.nameWithoutPrefixTB[0]}1',
-            false => table.nameWithoutPrefixTB[0],
-          };
-          final second = switch (table.name == entry.value.name || table.nameWithoutPrefixTB[0] == entry.value.nameWithoutPrefixTB[0]) {
-            true => '${entry.value.nameWithoutPrefixTB[0]}2',
-            false => entry.value.nameWithoutPrefixTB[0],
-          };
-          return '''if (include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()}) {
-query = r\'\'\'SELECT
-${table.columns.map((c) => '  $first.${_fieldName(c).toSnakeCase()} as ${first}_${table.nameWithoutPrefixTB}_${_fieldName(c).toSnakeCase()},').join('\n')}
-${entry.value.columns.map((c) => '  $second.${_fieldName(c).toSnakeCase()} as ${second}_${entry.value.nameWithoutPrefixTB}_${_fieldName(c).toSnakeCase()}2').join(',\n')}
-FROM
-  ${table.name} $first
-JOIN
-  ${entry.value.name} $second
-ON
-  $first.${_getPkName(table.columns).toSnakeCase()} = $second.${entry.key.split(':')[1]}
-WHERE
-  $first.${_getPkName(table.columns).toSnakeCase()} = \$1;\'\'\';
-}''';
-        },
-      ).join('\n\n')}
+    String query = r'SELECT * FROM ${table.name} WHERE ${_getPkName(table.columns).toSnakeCase()} = \$1 LIMIT 1;';
 
     if (verbose) {
       print('${'-' * 80}');
 
       print('SQL => \$query');
 
-      print('PARAMS => \${[pk]}');
+      print('PARAMS => \$${_getPkName(table.columns)}');
 
       print('${'-' * 80}');
     }
 
     final result = await _conn.execute(
       query, 
-      parameters: [pk],
+      parameters: [${_getPkName(table.columns)}],
     );
   
     if (result.isEmpty) {
@@ -685,42 +778,12 @@ WHERE
   
     final row = result.first;
 
-    ${table.references.entries.map(
-        (entry) {
-          return '''if (include${_constraintNameNormalizer(entry.key.split(':').first).toCamelCase()}) {
-                final [
-                  ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
-                  ...
-                ] = row as List;
-
-                final ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))} = result.map((r) {
-                    final [
-                      ...,
-                      ${entry.value.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
-                    ] = r as List;
-
-                    return ${entry.value.entity}(
-                      ${entry.value.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
-                    );
-                  },
-                ).toList();
-
-                final entity = ${table.entity}(
-                  ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
-                  ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}: ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))},
-                );
-
-                return Success(entity);
-              }''';
-        },
-      ).join('\n\n')}
-  
     final [
-      ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
     ] = row as List;
-  
+
     final entity = ${table.entity}(
-      ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
     );
   
     return Success(entity);
@@ -737,7 +800,7 @@ String _findByUniqueKeyBuilder(_Table table) {
     true => _getUniqueKeysMapped(table.columns).entries.map(
         (uk) {
           return '''AsyncResult<${table.entity}, Exception> findBy${uk.key.toSnakeCase().toCamelCase()}(
-    ${uk.value} unique
+    ${uk.value} ${uk.key}
   ) async {
   try {
     final query = r'SELECT * FROM ${table.name} WHERE ${uk.key.toSnakeCase()} = \$1 LIMIT 1;';
@@ -747,14 +810,14 @@ String _findByUniqueKeyBuilder(_Table table) {
 
       print('SQL => \$query');
 
-      print('PARAMS => \${[unique]}');
+      print('PARAMS => \$${uk.key}');
 
       print('${'-' * 80}');
     }
 
     final result = await _conn.execute(
       query, 
-      parameters: [unique],
+      parameters: [${uk.key}],
     );
   
     if (result.isEmpty) {
@@ -764,11 +827,11 @@ String _findByUniqueKeyBuilder(_Table table) {
     final row = result.first;
   
     final [
-      ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+      ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
     ] = row as List;
   
     final entity = ${table.entity}(
-      ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+      ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
     );
   
     return Success(entity);
@@ -781,48 +844,43 @@ String _findByUniqueKeyBuilder(_Table table) {
   };
 }
 
-String _updateOneParamsBuilder(_Table table) {
-  return '''class UpdateOne${table.rawEntityName}Params {
-  ${table.columns.map((c) => 'final Where? where${_fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
-  ${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => 'final ${_fieldType(c)}? ${_fieldName(c)};').join('\n')}
-
-  const UpdateOne${table.rawEntityName}Params({
-    ${table.columns.map((c) => 'this.where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
-    ${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => 'this.${_fieldName(c)},').join('\n')}
-  });
-
-  Map<String, Where> get wheres => {
-    ${table.columns.map((c) => 'if (where${_fieldName(c).toSnakeCase().toCamelCase()} != null) \'${_fieldName(c).toSnakeCase()}\': where${_fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
-  };
-
-  Map<String, dynamic> get parameters => {
-    ${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
-  };
-}''';
-}
-
 String _updateOneBuilder(_Table table) {
-  return '''AsyncResult<${table.entity}, Exception> updateOne(UpdateOne${table.rawEntityName}Params params) async {
+  return '''AsyncResult<${table.entity}, Exception> updateOne({
+${table.columns.map((c) => 'Where? where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => '${_fieldType(c)}? set${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+  }) async {
     try {
-    if (params.parameters.isEmpty) {
+    final wheres = <String, Where>{
+${table.columns.map((c) => 'if (where${_fieldName(c).toSnakeCase().toCamelCase()} != null) \'${_fieldName(c).toSnakeCase()}\': where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+    };
+
+    if (wheres.isEmpty) {
+      return Error(Exception('No filters to update!'));
+    }
+
+    final parameters = <String, dynamic>{
+${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => 'if (set${_fieldName(c).toSnakeCase().toCamelCase()} != null) \'${_fieldName(c).toSnakeCase()}\': set${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+    };
+
+    if (parameters.isEmpty) {
       return Error(Exception('No data to update!'));
     }
 
-    final query = 'UPDATE ${table.name} SET \${List.generate(params.parameters.length, (i) => '\${params.parameters.keys.elementAt(i)} = \\\$\${i + 1}').join(', ')} WHERE \${List.generate(params.wheres.length, (i) => '\${params.wheres.keys.elementAt(i)} \${params.wheres.values.elementAt(i).op} \\\$\${i + 1 + params.parameters.length}').join(' AND ')} RETURNING *;';
+    final query = 'UPDATE ${table.name} SET \${parameters.entries.indexedMap((index, entry) => '\${entry.key} = \\\$\${index + 1}').join(', ')} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1 + parameters.length}').join(' AND ')} RETURNING *;';
 
     if (verbose) {
       print('${'-' * 80}');
 
       print('SQL => \$query');
 
-      print('PARAMS => \${[...params.parameters.values, ...params.wheres.values.map((w) => w.value)]}');
+      print('PARAMS => \${parameters.values.join(', ')}, \${wheres.values.map((w) => w.value).join(', ')}');
 
       print('${'-' * 80}');
     }
 
     final result = await _conn.execute(
       query, 
-      parameters: [...params.parameters.values, ...params.wheres.values.map((w) => w.value)],
+      parameters: [...parameters.values, ...wheres.values.map((w) => w.value)],
     );
     
     if (result.isEmpty) {
@@ -832,11 +890,11 @@ String _updateOneBuilder(_Table table) {
     final row = result.first;
 
     final [
-${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
     ] = row as List;
 
     final entity = ${table.entity}(
-${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
     );
 
     return Success(entity);
@@ -846,42 +904,34 @@ ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
   }''';
 }
 
-String _deleteOneParamsBuilder(_Table table) {
-  return '''class DeleteOne${table.rawEntityName}Params {
-  ${table.columns.map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
-
-  const DeleteOne${table.rawEntityName}Params({
-  ${table.columns.map((c) => 'this.${_fieldName(c)},').join('\n')}
-  });
-
-  Map<String, Where> get wheres => {
-  ${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}!,').join('\n')}
-  };
-}''';
-}
-
 String _deleteOneBuilder(_Table table) {
-  return '''AsyncResult<${table.entity}, Exception> deleteOne(DeleteOne${table.rawEntityName}Params params) async {
+  return '''AsyncResult<${table.entity}, Exception> deleteOne({
+${table.columns.map((c) => 'Where? where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+  }) async {
     try {
-      if (params.wheres.isEmpty) {
-        return Error(Exception('No data to delete!'));
+      final wheres = <String, Where>{
+${table.columns.map((c) => 'if (where${_fieldName(c).toSnakeCase().toCamelCase()} != null) \'${_fieldName(c).toSnakeCase()}\': where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+      };
+
+      if (wheres.isEmpty) {
+        return Error(Exception('No filters to delete!'));
       }
 
-      final query = 'DELETE FROM ${table.name} WHERE \${List.generate(params.wheres.length, (i) => '\${params.wheres.keys.elementAt(i)} \${params.wheres.values.elementAt(i).op} \\\$\${i + 1}').join(' AND ')} RETURNING *;';
+      final query = 'DELETE FROM ${table.name} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')} RETURNING *;';
     
       if (verbose) {
         print('${'-' * 80}');
 
         print('SQL => \$query');
 
-        print('PARAMS => \${params.wheres.values.map((w) => w.value).toList()}');
+        print('PARAMS => \${wheres.values.map((w) => w.value).join(', ')}');
 
         print('${'-' * 80}');
       }
 
       final result = await _conn.execute(
         query, 
-        parameters: params.wheres.values.map((w) => w.value).toList(),
+        parameters: wheres.values.map((w) => w.value).toList(),
       );
       
       if (result.isEmpty) {
@@ -965,19 +1015,15 @@ void _format(Directory output) {
   Process.runSync('dart', ['format', output.path]);
 }
 
-void _showUriError() {
+void _showUriError(String message) {
   _clearConsole();
   stdout.writeln('-' * 80);
   stdout.writeln('ERROR');
   stdout.writeln('-' * 80);
-  stdout.writeln('You must set a valid PostgreSQL url!');
+  stdout.writeln(message);
   stdout.writeln();
   stdout.writeln('e.g. postgresql://username:password@localhost:5432/database');
   stdout.writeln('-' * 80);
-  stdout.writeln();
-  stdout.write('Press ENTER to reset...');
-  stdin.readLineSync();
-  _clearConsole();
 }
 
 void _showFilesError(String inputPath) {
@@ -1011,7 +1057,6 @@ void _showOutputError(String inputPath) {
 }
 
 void _showExceptionError(Exception ex) {
-  _clearConsole();
   stdout.writeln('-' * 80);
   stdout.writeln('ERROR');
   stdout.writeln('-' * 80);
@@ -1019,13 +1064,21 @@ void _showExceptionError(Exception ex) {
   stdout.writeln();
   stdout.writeln(ex.toString());
   stdout.writeln('-' * 80);
-  stdout.writeln();
-  stdout.write('Press ENTER to reset...');
-  stdin.readLineSync();
-  _clearConsole();
 }
 
 void _clearConsole() => stdout.write('\x1B[2J\x1B[0;0H');
+
+bool _mapEquals(Map<String, dynamic> m1, Map<String, dynamic> m2) {
+  if (m1.length != m2.length) {
+    return false;
+  }
+  for (final key in m1.keys) {
+    if (m1[key] != m2[key]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 class _Table {
   final String entity;
@@ -1058,5 +1111,11 @@ class _Table {
       lines: lines ?? this.lines,
       references: references ?? this.references,
     );
+  }
+}
+
+extension _ListExt<T> on Iterable<T> {
+  Iterable<S> indexedMap<S>(S Function(int index, T element) func) {
+    return Iterable<S>.generate(length, (i) => func(i, elementAt(i)));
   }
 }

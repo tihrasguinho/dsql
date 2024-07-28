@@ -1,31 +1,21 @@
-import 'dart:io';
-
 import 'package:example/generated/dsql.dart';
 
 void main() async {
   final dsql = await DSQL.open(
-    'postgres://postgres:postgres@localhost:5432/dsql',
+    'postgres://postgres:postgres@localhost:5432/dev',
     verbose: true,
   );
 
-  // await dsql.posts.insertOne(
-  //   InsertOnePostParams(
-  //     title: 'title ${DateTime.now().toIso8601String()}',
-  //     body: 'body',
-  //     ownerId: '058781b0-207f-48fa-aad1-6725cc303c33',
-  //   ),
-  // );
+  final result = await dsql.users.findOne();
 
-  final result = await dsql.users.findByPK('058781b0-207f-48fa-aad1-6725cc303c33', includeUserposts: true);
-
-  if (result.isError) {
-    print(result.getErrorOrThrow());
-    exit(0);
-  }
-
-  final user = result.getSuccessOrThrow();
-
-  print(user);
+  result.when(
+    (success) {
+      print(success);
+    },
+    (error) {
+      print(error);
+    },
+  );
 
 //   --------------------------------------------------------------------------------
 //   SQL => INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;

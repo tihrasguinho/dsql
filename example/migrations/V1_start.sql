@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS tb_users (
   password VARCHAR(255) NOT NULL,
   image VARCHAR(255),
   bio VARCHAR(255),
-  website VARCHAR(255),
   created_at TIMESTAMP NOT NULL DEFAULT NOW (),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW ()
 );
@@ -16,13 +15,12 @@ CREATE TABLE IF NOT EXISTS tb_users (
 CREATE TABLE IF NOT EXISTS tb_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
   post_id UUID,
-  title VARCHAR(255) NOT NULL,
-  body TEXT NOT NULL,
-  owner_id UUID NOT NULL,
+  content VARCHAR(255) NOT NULL,
+  user_id UUID NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW (),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW (),
   CONSTRAINT fk_post_replies FOREIGN KEY (post_id) REFERENCES tb_posts (id) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fk_user_posts FOREIGN KEY (owner_id) REFERENCES tb_users (id) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT fk_user_posts FOREIGN KEY (user_id) REFERENCES tb_users (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- entity: LikeEntity
