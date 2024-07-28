@@ -1,3 +1,7 @@
+## 1.0.3
+
+- Migration tool added (see example)
+
 ## 1.0.1
 
 - Refactoring progress (

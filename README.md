@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS tb_likes (
   CONSTRAINT fk_user_likes FOREIGN KEY (user_id) REFERENCES tb_users (id)
 );
 ```
+ - Set the `DATABASE_URL` environment variable to your database url.
+
+ ###### Note: you can also create a `.env` file with the database url.
 
  - After that you can generate the dart files with the command `dart run sdql --generate` or `dart run dsql --migrate` to create the tables in the database or update them and generate the dart files.
 
