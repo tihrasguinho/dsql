@@ -11,9 +11,12 @@ class UserEntity {
   final String password;
   final String? image;
   final String? bio;
-  final String? website;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<PostEntity> userPosts;
+  final List<LikeEntity> userLikes;
+  final List<FollowerEntity> followers;
+  final List<FollowerEntity> following;
 
   const UserEntity({
     required this.id,
@@ -23,9 +26,12 @@ class UserEntity {
     required this.password,
     this.image,
     this.bio,
-    this.website,
     required this.createdAt,
     required this.updatedAt,
+    this.userPosts = const <PostEntity>[],
+    this.userLikes = const <LikeEntity>[],
+    this.followers = const <FollowerEntity>[],
+    this.following = const <FollowerEntity>[],
   });
 
   UserEntity copyWith({
@@ -36,9 +42,12 @@ class UserEntity {
     String? password,
     String? image,
     String? bio,
-    String? website,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<PostEntity>? userPosts,
+    List<LikeEntity>? userLikes,
+    List<FollowerEntity>? followers,
+    List<FollowerEntity>? following,
   }) {
     return UserEntity(
       id: id ?? this.id,
@@ -48,9 +57,12 @@ class UserEntity {
       password: password ?? this.password,
       image: image ?? this.image,
       bio: bio ?? this.bio,
-      website: website ?? this.website,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      userPosts: userPosts ?? this.userPosts,
+      userLikes: userLikes ?? this.userLikes,
+      followers: followers ?? this.followers,
+      following: following ?? this.following,
     );
   }
 
@@ -63,9 +75,12 @@ class UserEntity {
       'password': password,
       'image': image,
       'bio': bio,
-      'website': website,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'user_posts': userPosts.map((e) => e.toMap()).toList(),
+      'user_likes': userLikes.map((e) => e.toMap()).toList(),
+      'followers': followers.map((e) => e.toMap()).toList(),
+      'following': following.map((e) => e.toMap()).toList(),
     };
   }
 
@@ -80,18 +95,42 @@ class UserEntity {
       password: map['password'] as String,
       image: map['image'] as String,
       bio: map['bio'] as String,
-      website: map['website'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
+      userPosts: List<PostEntity>.from(
+        (map['user_posts'] as List).map(
+          (innerMap) {
+            return PostEntity.fromMap(innerMap);
+          },
+        ),
+      ),
+      userLikes: List<LikeEntity>.from(
+        (map['user_likes'] as List).map(
+          (innerMap) {
+            return LikeEntity.fromMap(innerMap);
+          },
+        ),
+      ),
+      followers: List<FollowerEntity>.from(
+        (map['followers'] as List).map(
+          (innerMap) {
+            return FollowerEntity.fromMap(innerMap);
+          },
+        ),
+      ),
+      following: List<FollowerEntity>.from(
+        (map['following'] as List).map(
+          (innerMap) {
+            return FollowerEntity.fromMap(innerMap);
+          },
+        ),
+      ),
     );
   }
 
-  factory UserEntity.fromJson(String source) =>
-      UserEntity.fromMap(json.decode(source));
-
   @override
   String toString() {
-    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, website: $website, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt, userPosts: $userPosts, userLikes: $userLikes, followers: $followers, following: $following)';
   }
 
   @override
@@ -106,61 +145,64 @@ class UserEntity {
         other.password == password &&
         other.image == image &&
         other.bio == bio &&
-        other.website == website &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt;
   }
 
   @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      username.hashCode ^
-      email.hashCode ^
-      password.hashCode ^
-      image.hashCode ^
-      bio.hashCode ^
-      website.hashCode ^
-      createdAt.hashCode ^
-      updatedAt.hashCode;
+  int get hashCode {
+    return id.hashCode ^
+        name.hashCode ^
+        username.hashCode ^
+        email.hashCode ^
+        password.hashCode ^
+        image.hashCode ^
+        bio.hashCode ^
+        createdAt.hashCode ^
+        updatedAt.hashCode;
+  }
 }
 
 class PostEntity {
   final String id;
   final String? postId;
-  final String title;
-  final String body;
-  final String ownerId;
+  final String content;
+  final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<PostEntity> postReplies;
+  final List<LikeEntity> postLikes;
 
   const PostEntity({
     required this.id,
     this.postId,
-    required this.title,
-    required this.body,
-    required this.ownerId,
+    required this.content,
+    required this.userId,
     required this.createdAt,
     required this.updatedAt,
+    this.postReplies = const <PostEntity>[],
+    this.postLikes = const <LikeEntity>[],
   });
 
   PostEntity copyWith({
     String? id,
     String? postId,
-    String? title,
-    String? body,
-    String? ownerId,
+    String? content,
+    String? userId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<PostEntity>? postReplies,
+    List<LikeEntity>? postLikes,
   }) {
     return PostEntity(
       id: id ?? this.id,
       postId: postId ?? this.postId,
-      title: title ?? this.title,
-      body: body ?? this.body,
-      ownerId: ownerId ?? this.ownerId,
+      content: content ?? this.content,
+      userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      postReplies: postReplies ?? this.postReplies,
+      postLikes: postLikes ?? this.postLikes,
     );
   }
 
@@ -168,11 +210,12 @@ class PostEntity {
     return {
       'id': id,
       'post_id': postId,
-      'title': title,
-      'body': body,
-      'owner_id': ownerId,
+      'content': content,
+      'user_id': userId,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'post_replies': postReplies.map((e) => e.toMap()).toList(),
+      'post_likes': postLikes.map((e) => e.toMap()).toList(),
     };
   }
 
@@ -182,20 +225,30 @@ class PostEntity {
     return PostEntity(
       id: map['id'] as String,
       postId: map['post_id'] as String,
-      title: map['title'] as String,
-      body: map['body'] as String,
-      ownerId: map['owner_id'] as String,
+      content: map['content'] as String,
+      userId: map['user_id'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
+      postReplies: List<PostEntity>.from(
+        (map['post_replies'] as List).map(
+          (innerMap) {
+            return PostEntity.fromMap(innerMap);
+          },
+        ),
+      ),
+      postLikes: List<LikeEntity>.from(
+        (map['post_likes'] as List).map(
+          (innerMap) {
+            return LikeEntity.fromMap(innerMap);
+          },
+        ),
+      ),
     );
   }
 
-  factory PostEntity.fromJson(String source) =>
-      PostEntity.fromMap(json.decode(source));
-
   @override
   String toString() {
-    return 'PostEntity(id: $id, postId: $postId, title: $title, body: $body, ownerId: $ownerId, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, postReplies: $postReplies, postLikes: $postLikes)';
   }
 
   @override
@@ -205,22 +258,21 @@ class PostEntity {
     return other is PostEntity &&
         other.id == id &&
         other.postId == postId &&
-        other.title == title &&
-        other.body == body &&
-        other.ownerId == ownerId &&
+        other.content == content &&
+        other.userId == userId &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt;
   }
 
   @override
-  int get hashCode =>
-      id.hashCode ^
-      postId.hashCode ^
-      title.hashCode ^
-      body.hashCode ^
-      ownerId.hashCode ^
-      createdAt.hashCode ^
-      updatedAt.hashCode;
+  int get hashCode {
+    return id.hashCode ^
+        postId.hashCode ^
+        content.hashCode ^
+        userId.hashCode ^
+        createdAt.hashCode ^
+        updatedAt.hashCode;
+  }
 }
 
 class LikeEntity {
@@ -270,9 +322,6 @@ class LikeEntity {
     );
   }
 
-  factory LikeEntity.fromJson(String source) =>
-      LikeEntity.fromMap(json.decode(source));
-
   @override
   String toString() {
     return 'LikeEntity(id: $id, postId: $postId, userId: $userId, createdAt: $createdAt)';
@@ -290,6 +339,79 @@ class LikeEntity {
   }
 
   @override
-  int get hashCode =>
-      id.hashCode ^ postId.hashCode ^ userId.hashCode ^ createdAt.hashCode;
+  int get hashCode {
+    return id.hashCode ^ postId.hashCode ^ userId.hashCode ^ createdAt.hashCode;
+  }
+}
+
+class FollowerEntity {
+  final String id;
+  final String followerId;
+  final String followingId;
+  final DateTime createdAt;
+
+  const FollowerEntity({
+    required this.id,
+    required this.followerId,
+    required this.followingId,
+    required this.createdAt,
+  });
+
+  FollowerEntity copyWith({
+    String? id,
+    String? followerId,
+    String? followingId,
+    DateTime? createdAt,
+  }) {
+    return FollowerEntity(
+      id: id ?? this.id,
+      followerId: followerId ?? this.followerId,
+      followingId: followingId ?? this.followingId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'follower_id': followerId,
+      'following_id': followingId,
+      'created_at': createdAt,
+    };
+  }
+
+  String toJson() => json.encode(toMap());
+
+  factory FollowerEntity.fromMap(Map<String, dynamic> map) {
+    return FollowerEntity(
+      id: map['id'] as String,
+      followerId: map['follower_id'] as String,
+      followingId: map['following_id'] as String,
+      createdAt: map['created_at'] as DateTime,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'FollowerEntity(id: $id, followerId: $followerId, followingId: $followingId, createdAt: $createdAt)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is FollowerEntity &&
+        other.id == id &&
+        other.followerId == followerId &&
+        other.followingId == followingId &&
+        other.createdAt == createdAt;
+  }
+
+  @override
+  int get hashCode {
+    return id.hashCode ^
+        followerId.hashCode ^
+        followingId.hashCode ^
+        createdAt.hashCode;
+  }
 }

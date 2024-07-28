@@ -1,21 +1,21 @@
-import 'lib/generated/dsql.dart';
+import 'package:example/generated/dsql.dart';
 
 void main() async {
   final dsql = await DSQL.open(
-    'postgres://postgres:postgres@localhost:5432/dsql',
+    'postgres://postgres:postgres@localhost:5432/dev',
     verbose: true,
   );
 
-  final result = await dsql.users.insertOne(
-    InsertOneUserParams(
-      name: 'Tiago Alves',
-      username: 'tihrasguinho',
-      email: 'tiago@gmail.com',
-      password: '123456',
-    ),
-  );
+  final result = await dsql.users.findOne();
 
-  return result.when(print, print);
+  result.when(
+    (success) {
+      print(success);
+    },
+    (error) {
+      print(error);
+    },
+  );
 
 //   --------------------------------------------------------------------------------
 //   SQL => INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;
