@@ -7,8 +7,23 @@ on:
 
 jobs:
   publish:
-    permissions:
-      id-token: write
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
-    with:
-      working-directory: .
+    runs-on: ubuntu-latest
+    steps:    
+      - name: Publish to pub.dev
+        uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+        with:
+          working-directory: .
+
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh
+
+      - name: Authenticate GitHub CLI
+        run: gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Delete GitHub Release
+        run: gh release delete ${{ github.ref_name }} -y
+
+      - name: Delete Git Tag
+        run: |
+          git push --delete origin ${{ github.ref_name }}
+          git tag -d ${{ github.ref_name }}

@@ -1,3 +1,7 @@
+## 1.0.4
+
+- Removed (for now) the relationship fields from entities
+
 ## 1.0.3
 
 - Migration tool added (see example)

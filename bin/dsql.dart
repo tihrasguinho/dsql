@@ -6,17 +6,33 @@ import 'package:path/path.dart' as p;
 import 'package:postgres/postgres.dart' hide Type;
 import 'package:strings/strings.dart';
 
-final _regFk1 = RegExp(r'^CONSTRAINT\s(\w+)\sFOREIGN\sKEY\s\((\w+)\)\sREFERENCES\s(\w+)\s\((\w+)\)');
+final _regFk1 = RegExp(
+    r'^CONSTRAINT\s(\w+)\sFOREIGN\sKEY\s\((\w+)\)\sREFERENCES\s(\w+)\s\((\w+)\)');
 final _regFk2 = RegExp(r'REFERENCES\s(\w+)\s?\((\w+)\)');
-final _regTb = RegExp(r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
+final _regTb = RegExp(
+    r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
 
 void main(List<String> args) async {
   final parser = ArgParser()
-    ..addOption('output', abbr: 'o', help: 'Set the output directory, where the dart files will be, if not set, default: lib/generated')
-    ..addOption('input', abbr: 'i', help: 'Set the input directory, where the sql files are, if not set, default: migrations')
-    ..addFlag('migrate', abbr: 'm', help: 'Migrate the database based on the sql files and generate the dart files', negatable: false)
-    ..addFlag('generate', abbr: 'g', help: 'Generate the dart files from the sql files', negatable: false)
-    ..addFlag('help', abbr: 'h', help: 'Show the help information.', negatable: false);
+    ..addOption('output',
+        abbr: 'o',
+        help:
+            'Set the output directory, where the dart files will be, if not set, default: lib/generated')
+    ..addOption('input',
+        abbr: 'i',
+        help:
+            'Set the input directory, where the sql files are, if not set, default: migrations')
+    ..addFlag('migrate',
+        abbr: 'm',
+        help:
+            'Migrate the database based on the sql files and generate the dart files',
+        negatable: false)
+    ..addFlag('generate',
+        abbr: 'g',
+        help: 'Generate the dart files from the sql files',
+        negatable: false)
+    ..addFlag('help',
+        abbr: 'h', help: 'Show the help information.', negatable: false);
 
   final results = parser.parse(args);
 
@@ -27,7 +43,8 @@ void main(List<String> args) async {
     stdout.writeln();
     stdout.writeln('Example:');
     stdout.writeln('  dart run dsql --migrate');
-    stdout.writeln('  dart run dsql --generate --input sql/files/location --output dart/files/location');
+    stdout.writeln(
+        '  dart run dsql --generate --input sql/files/location --output dart/files/location');
     exit(0);
   }
 
@@ -106,7 +123,9 @@ void _migrate(Directory root, Directory input, Directory output) async {
     _showOutputError(p.relative(input.path, from: Directory.current.path));
     exit(0);
   }
-  final files = input.listSync(recursive: true).where((f) => p.extension(f.path) == '.sql');
+  final files = input
+      .listSync(recursive: true)
+      .where((f) => p.extension(f.path) == '.sql');
   if (files.isEmpty) {
     _showFilesError(p.relative(input.path, from: Directory.current.path));
     exit(0);
@@ -128,7 +147,8 @@ void _migrate(Directory root, Directory input, Directory output) async {
       ),
     );
 
-    final migrations = files.map((file) => File(file.path).readAsLinesSync().join('\n'));
+    final migrations =
+        files.map((file) => File(file.path).readAsLinesSync().join('\n'));
 
     final newTables = migrations.map(_regTb.allMatches).expand((m) => m).fold(
       <String, String>{},
@@ -149,7 +169,8 @@ void _migrate(Directory root, Directory input, Directory output) async {
         final check = checkResult.first.first as bool;
 
         if (check) {
-          final last = await tx.execute('SELECT * FROM __migrations ORDER BY created_at DESC LIMIT 1;');
+          final last = await tx.execute(
+              'SELECT * FROM __migrations ORDER BY created_at DESC LIMIT 1;');
 
           if (last.isNotEmpty) {
             final [
@@ -166,7 +187,8 @@ void _migrate(Directory root, Directory input, Directory output) async {
                 parameters: [schema, '__migrations'],
               );
 
-              for (final name in tablesResult.map((r) => r.join(', ')).toList()) {
+              for (final name
+                  in tablesResult.map((r) => r.join(', ')).toList()) {
                 await tx.execute('DROP TABLE IF EXISTS $name CASCADE;');
               }
 
@@ -175,11 +197,14 @@ void _migrate(Directory root, Directory input, Directory output) async {
                 parameters: [jsonEncode(newTables)],
               );
 
-              await tx.execute(migrations.join('\n'), queryMode: QueryMode.simple);
+              await tx.execute(migrations.join('\n'),
+                  queryMode: QueryMode.simple);
 
-              stdout.writeln('Updated, the current version is ${insertMigration.first.first as int}!');
+              stdout.writeln(
+                  'Updated, the current version is ${insertMigration.first.first as int}!');
             } else {
-              stdout.writeln('Nothing to do, the current version is ${last.first.first as int}!');
+              stdout.writeln(
+                  'Nothing to do, the current version is ${last.first.first as int}!');
             }
           } else {
             stdout.writeln('Updating...');
@@ -189,12 +214,15 @@ void _migrate(Directory root, Directory input, Directory output) async {
               parameters: [jsonEncode(newTables)],
             );
 
-            await tx.execute(migrations.join('\n'), queryMode: QueryMode.simple);
+            await tx.execute(migrations.join('\n'),
+                queryMode: QueryMode.simple);
 
-            stdout.writeln('Updated, the current version is ${insertMigration.first.first as int}!');
+            stdout.writeln(
+                'Updated, the current version is ${insertMigration.first.first as int}!');
           }
         } else {
-          await tx.execute('CREATE TABLE __migrations (id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tables JSONB NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW());');
+          await tx.execute(
+              'CREATE TABLE __migrations (id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tables JSONB NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW());');
 
           await tx.execute(
             r'INSERT INTO __migrations (tables) VALUES ($1);',
@@ -236,7 +264,12 @@ void _generate(Directory input, Directory output) {
             (match) => _Table(
               entity: match.group(1)!,
               name: match.group(2)!,
-              lines: match.group(3)!.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList(),
+              lines: match
+                  .group(3)!
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .where((l) => l.isNotEmpty)
+                  .toList(),
             ),
           ),
     );
@@ -253,7 +286,6 @@ void _generate(Directory input, Directory output) {
         final constraintRef = match1.group(1);
         final colOrigin = match1.group(2)!;
         final tableRef = match1.group(3)!;
-        // final columnRef = match1.group(4)!;
 
         final index = tables.indexWhere((t) => t.name == tableRef);
         if (index < 0) continue;
@@ -267,7 +299,6 @@ void _generate(Directory input, Directory output) {
       } else if (match2 != null) {
         final colOrigin = match2.group(1)!;
         final tableRef = match2.group(1)!;
-        // final columnRef = match2.group(2)!;
 
         final index = tables.indexWhere((t) => t.name == tableRef);
         if (index < 0) continue;
@@ -291,7 +322,8 @@ void _generate(Directory input, Directory output) {
 
   if (!entities.existsSync()) entities.createSync(recursive: true);
 
-  entities.writeAsStringSync(_entitiesImportsBuilder(entitiesBuffer.toString()));
+  entities
+      .writeAsStringSync(_entitiesImportsBuilder(entitiesBuffer.toString()));
 
   if (!dsql.existsSync()) dsql.createSync(recursive: true);
 
@@ -299,7 +331,8 @@ void _generate(Directory input, Directory output) {
 
   _format(output);
 
-  stdout.writeln('Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
+  stdout.writeln(
+      'Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
 
   exit(0);
 }
@@ -317,7 +350,13 @@ Type _fieldType(String col) {
 
   return switch (sql) {
     'TEXT' || 'UUID' || 'CHAR' => String,
-    'SMALLINT' || 'INTEGER' || 'BIGINT' || 'SERIAL' || 'BIGSERIAL' || 'SMALLSERIAL' => int,
+    'SMALLINT' ||
+    'INTEGER' ||
+    'BIGINT' ||
+    'SERIAL' ||
+    'BIGSERIAL' ||
+    'SMALLSERIAL' =>
+      int,
     'REAL' || 'DECIMAL' || 'NUMERIC' || 'DOUBLE' => double,
     'BOOLEAN' => bool,
     'TIMESTAMP' || 'TIMESTAMPTZ' || 'DATE' || 'TIME' => DateTime,
@@ -326,14 +365,16 @@ Type _fieldType(String col) {
 }
 
 bool _isRequired(String col) {
-  if (col.toUpperCase().contains('DEFAULT') || !col.toUpperCase().contains('NOT NULL')) {
+  if (col.toUpperCase().contains('DEFAULT') ||
+      !col.toUpperCase().contains('NOT NULL')) {
     return false;
   }
   return true;
 }
 
 bool _isNullable(String col) {
-  return !col.toUpperCase().contains('NOT NULL') && !col.toUpperCase().contains('PRIMARY KEY');
+  return !col.toUpperCase().contains('NOT NULL') &&
+      !col.toUpperCase().contains('PRIMARY KEY');
 }
 
 bool _isPrimaryKey(String col) {
@@ -345,7 +386,9 @@ bool _hasUniqueKey(List<String> cols) {
 }
 
 Map<String, Type> _getUniqueKeysMapped(List<String> cols) {
-  return Map.fromEntries(cols.where((col) => col.toUpperCase().contains('UNIQUE')).map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
+  return Map.fromEntries(cols
+      .where((col) => col.toUpperCase().contains('UNIQUE'))
+      .map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
 }
 
 bool _hasPrimaryKey(List<String> cols) {
@@ -366,7 +409,8 @@ String _dsqlBuilder(List<_Table> tables) {
   queries.add('''class DSQL {
 ${tables.map(
     (table) {
-      final name = table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
+      final name =
+          table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
 
       return '  late final ${table.repository} ${_tryToPluralize(name)};';
     },
@@ -375,7 +419,8 @@ ${tables.map(
   DSQL._(Connection conn, {bool verbose = false}) {
 ${tables.map(
     (table) {
-      final name = table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
+      final name =
+          table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
 
       return '${_tryToPluralize(name)} = ${table.repository}(conn, verbose: verbose);';
     },
@@ -467,39 +512,25 @@ String _entitiesBuilder(List<_Table> tables) {
   final entities = <String>[];
 
   for (final table in tables) {
-    final hasReferences = table.references.isNotEmpty;
     final content = '''class ${table.entity} {
     
 ${table.columns.map((c) => 'final ${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)};').join('\n')}
-${table.references.entries.map((entry) {
-      return 'final List<${entry.value.entity}> ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))};';
-    }).join('\n')}
 
 const ${table.entity}({
   ${table.columns.map((c) => _isNullable(c) ? 'this.${_fieldName(c)},' : 'required this.${_fieldName(c)},').join('\n')}
-  ${table.references.entries.map((entry) {
-      return 'this.${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))} = const <${entry.value.entity}>[],';
-    }).join('\n')}
 });
 
 ${table.entity} copyWith({
 ${table.columns.map((c) => '${_fieldType(c)}? ${_fieldName(c)},').join('\n')}
-${table.references.entries.map((entry) => 'List<${entry.value.entity}>? ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))},').join('\n')}
   }) {
     return ${table.entity}(
 ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)} ?? this.${_fieldName(c)},').join('\n')}
-${table.references.entries.map((entry) {
-      return '${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}: ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))} ?? this.${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))},';
-    }).join('\n')}
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
 ${table.columns.map((c) => '\'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
-${table.references.entries.map((entry) {
-      return '\'${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first)).toSnakeCase()}\': ${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}.map((e) => e.toMap()).toList(),';
-    }).join('\n')}
     };
   }
 
@@ -508,22 +539,12 @@ ${table.references.entries.map((entry) {
   factory ${table.entity}.fromMap(Map<String, dynamic> map) {
       return ${table.entity}(
 ${table.columns.map((c) => '        ${_fieldName(c)}: map[\'${_fieldName(c).toSnakeCase()}\'] as ${_fieldType(c)},').join('\n')}
-${table.references.entries.map(
-      (entry) {
-        return '''${_tryToPluralize(_constraintNameNormalizer(entry.key.split(":").first))}: List<${entry.value.entity}>.from(
-            (map['${_tryToPluralize(_constraintNameNormalizer(entry.key.split(":").first)).toSnakeCase()}'] as List).map((innerMap) {
-              return ${entry.value.entity}.fromMap(innerMap);
-            },
-          ),
-        ),''';
-      },
-    ).join('\n')}
       );
   }
 
   @override
   String toString() {
-    return '${table.entity}(${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)}').join(', ')}${hasReferences ? ', ' : ''}${table.references.entries.map((entry) => '${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}: \$${_tryToPluralize(_constraintNameNormalizer(entry.key.split(':').first))}').join(', ')})';
+    return '${table.entity}(${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)}').join(', ')})';
   }
 
   @override
@@ -1002,7 +1023,9 @@ String _tryToPluralize(String word) {
     return '${word.substring(0, word.length - 1)}oes';
   } else if (word.endsWith('er')) {
     return '${word.substring(0, word.length - 2)}ers';
-  } else if (word.endsWith('ing') || word.endsWith('ed') || word.endsWith('ers')) {
+  } else if (word.endsWith('ing') ||
+      word.endsWith('ed') ||
+      word.endsWith('ers')) {
     return word;
   } else {
     return '${word}s';
@@ -1098,13 +1121,19 @@ class _Table {
   final List<String> lines;
   final Map<String, _Table> references;
 
-  const _Table({required this.entity, required this.name, required this.lines, this.references = const {}});
+  const _Table(
+      {required this.entity,
+      required this.name,
+      required this.lines,
+      this.references = const {}});
 
   String get rawEntityName => entity.substring(0, entity.length - 6);
 
   String get repository => '${_tryToPluralize(rawEntityName)}Repository';
 
-  List<String> get columns => lines.where((l) => !RegExp(r'^(CONSTRAINT|FOREIGN KEY)').hasMatch(l)).toList();
+  List<String> get columns => lines
+      .where((l) => !RegExp(r'^(CONSTRAINT|FOREIGN KEY)').hasMatch(l))
+      .toList();
 
   String get nameWithoutPrefixTB => switch (name.startsWith('tb_')) {
         true => name.substring(3),

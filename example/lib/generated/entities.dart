@@ -13,10 +13,6 @@ class UserEntity {
   final String? bio;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final List<PostEntity> userPosts;
-  final List<LikeEntity> userLikes;
-  final List<FollowerEntity> followers;
-  final List<FollowerEntity> following;
 
   const UserEntity({
     required this.id,
@@ -28,10 +24,6 @@ class UserEntity {
     this.bio,
     required this.createdAt,
     required this.updatedAt,
-    this.userPosts = const <PostEntity>[],
-    this.userLikes = const <LikeEntity>[],
-    this.followers = const <FollowerEntity>[],
-    this.following = const <FollowerEntity>[],
   });
 
   UserEntity copyWith({
@@ -44,10 +36,6 @@ class UserEntity {
     String? bio,
     DateTime? createdAt,
     DateTime? updatedAt,
-    List<PostEntity>? userPosts,
-    List<LikeEntity>? userLikes,
-    List<FollowerEntity>? followers,
-    List<FollowerEntity>? following,
   }) {
     return UserEntity(
       id: id ?? this.id,
@@ -59,10 +47,6 @@ class UserEntity {
       bio: bio ?? this.bio,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      userPosts: userPosts ?? this.userPosts,
-      userLikes: userLikes ?? this.userLikes,
-      followers: followers ?? this.followers,
-      following: following ?? this.following,
     );
   }
 
@@ -77,10 +61,6 @@ class UserEntity {
       'bio': bio,
       'created_at': createdAt,
       'updated_at': updatedAt,
-      'user_posts': userPosts.map((e) => e.toMap()).toList(),
-      'user_likes': userLikes.map((e) => e.toMap()).toList(),
-      'followers': followers.map((e) => e.toMap()).toList(),
-      'following': following.map((e) => e.toMap()).toList(),
     };
   }
 
@@ -97,40 +77,12 @@ class UserEntity {
       bio: map['bio'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
-      userPosts: List<PostEntity>.from(
-        (map['user_posts'] as List).map(
-          (innerMap) {
-            return PostEntity.fromMap(innerMap);
-          },
-        ),
-      ),
-      userLikes: List<LikeEntity>.from(
-        (map['user_likes'] as List).map(
-          (innerMap) {
-            return LikeEntity.fromMap(innerMap);
-          },
-        ),
-      ),
-      followers: List<FollowerEntity>.from(
-        (map['followers'] as List).map(
-          (innerMap) {
-            return FollowerEntity.fromMap(innerMap);
-          },
-        ),
-      ),
-      following: List<FollowerEntity>.from(
-        (map['following'] as List).map(
-          (innerMap) {
-            return FollowerEntity.fromMap(innerMap);
-          },
-        ),
-      ),
     );
   }
 
   @override
   String toString() {
-    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt, userPosts: $userPosts, userLikes: $userLikes, followers: $followers, following: $following)';
+    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -170,8 +122,6 @@ class PostEntity {
   final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final List<PostEntity> postReplies;
-  final List<LikeEntity> postLikes;
 
   const PostEntity({
     required this.id,
@@ -180,8 +130,6 @@ class PostEntity {
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
-    this.postReplies = const <PostEntity>[],
-    this.postLikes = const <LikeEntity>[],
   });
 
   PostEntity copyWith({
@@ -191,8 +139,6 @@ class PostEntity {
     String? userId,
     DateTime? createdAt,
     DateTime? updatedAt,
-    List<PostEntity>? postReplies,
-    List<LikeEntity>? postLikes,
   }) {
     return PostEntity(
       id: id ?? this.id,
@@ -201,8 +147,6 @@ class PostEntity {
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      postReplies: postReplies ?? this.postReplies,
-      postLikes: postLikes ?? this.postLikes,
     );
   }
 
@@ -214,8 +158,6 @@ class PostEntity {
       'user_id': userId,
       'created_at': createdAt,
       'updated_at': updatedAt,
-      'post_replies': postReplies.map((e) => e.toMap()).toList(),
-      'post_likes': postLikes.map((e) => e.toMap()).toList(),
     };
   }
 
@@ -229,26 +171,12 @@ class PostEntity {
       userId: map['user_id'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
-      postReplies: List<PostEntity>.from(
-        (map['post_replies'] as List).map(
-          (innerMap) {
-            return PostEntity.fromMap(innerMap);
-          },
-        ),
-      ),
-      postLikes: List<LikeEntity>.from(
-        (map['post_likes'] as List).map(
-          (innerMap) {
-            return LikeEntity.fromMap(innerMap);
-          },
-        ),
-      ),
     );
   }
 
   @override
   String toString() {
-    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, postReplies: $postReplies, postLikes: $postLikes)';
+    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
