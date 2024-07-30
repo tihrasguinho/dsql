@@ -1,3 +1,7 @@
+## 1.0.5
+
+- Added a new way to map fields from relationships
+
 ## 1.0.4
 
 - Removed (for now) the relationship fields from entities

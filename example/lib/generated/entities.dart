@@ -13,6 +13,14 @@ class UserEntity {
   final String? bio;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<PostEntity>? $posts;
+  final int? $postsCount;
+  final List<LikeEntity>? $likes;
+  final int? $likesCount;
+  final List<FollowerEntity>? $followers;
+  final int? $followersCount;
+  final List<FollowerEntity>? $following;
+  final int? $followingCount;
 
   const UserEntity({
     required this.id,
@@ -24,6 +32,14 @@ class UserEntity {
     this.bio,
     required this.createdAt,
     required this.updatedAt,
+    this.$posts,
+    this.$postsCount,
+    this.$likes,
+    this.$likesCount,
+    this.$followers,
+    this.$followersCount,
+    this.$following,
+    this.$followingCount,
   });
 
   UserEntity copyWith({
@@ -32,10 +48,18 @@ class UserEntity {
     String? username,
     String? email,
     String? password,
-    String? image,
-    String? bio,
+    String? Function()? image,
+    String? Function()? bio,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<PostEntity>? Function()? $posts,
+    int? Function()? $postsCount,
+    List<LikeEntity>? Function()? $likes,
+    int? Function()? $likesCount,
+    List<FollowerEntity>? Function()? $followers,
+    int? Function()? $followersCount,
+    List<FollowerEntity>? Function()? $following,
+    int? Function()? $followingCount,
   }) {
     return UserEntity(
       id: id ?? this.id,
@@ -43,10 +67,20 @@ class UserEntity {
       username: username ?? this.username,
       email: email ?? this.email,
       password: password ?? this.password,
-      image: image ?? this.image,
-      bio: bio ?? this.bio,
+      image: image != null ? image() : this.image,
+      bio: bio != null ? bio() : this.bio,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      $posts: $posts != null ? $posts() : this.$posts,
+      $postsCount: $postsCount != null ? $postsCount() : this.$postsCount,
+      $likes: $likes != null ? $likes() : this.$likes,
+      $likesCount: $likesCount != null ? $likesCount() : this.$likesCount,
+      $followers: $followers != null ? $followers() : this.$followers,
+      $followersCount:
+          $followersCount != null ? $followersCount() : this.$followersCount,
+      $following: $following != null ? $following() : this.$following,
+      $followingCount:
+          $followingCount != null ? $followingCount() : this.$followingCount,
     );
   }
 
@@ -61,6 +95,14 @@ class UserEntity {
       'bio': bio,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'posts': $posts?.map((entity) => entity.toMap()).toList(),
+      'posts_count': $postsCount,
+      'likes': $likes?.map((entity) => entity.toMap()).toList(),
+      'likes_count': $likesCount,
+      'followers': $followers?.map((entity) => entity.toMap()).toList(),
+      'followers_count': $followersCount,
+      'following': $following?.map((entity) => entity.toMap()).toList(),
+      'following_count': $followingCount,
     };
   }
 
@@ -77,17 +119,54 @@ class UserEntity {
       bio: map['bio'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
+      $posts: List<PostEntity>.from(
+        (map['posts'] as List?)?.map(
+              (innerMap) => PostEntity.fromMap(innerMap),
+            ) ??
+            [],
+      ),
+      $postsCount: map['posts_count'],
+      $likes: List<LikeEntity>.from(
+        (map['likes'] as List?)?.map(
+              (innerMap) => LikeEntity.fromMap(innerMap),
+            ) ??
+            [],
+      ),
+      $likesCount: map['likes_count'],
+      $followers: List<FollowerEntity>.from(
+        (map['followers'] as List?)?.map(
+              (innerMap) => FollowerEntity.fromMap(innerMap),
+            ) ??
+            [],
+      ),
+      $followersCount: map['followers_count'],
+      $following: List<FollowerEntity>.from(
+        (map['following'] as List?)?.map(
+              (innerMap) => FollowerEntity.fromMap(innerMap),
+            ) ??
+            [],
+      ),
+      $followingCount: map['following_count'],
     );
   }
 
   @override
   String toString() {
-    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt, \$posts: ${$posts}, \$postsCount: ${$postsCount}, \$likes: ${$likes}, \$likesCount: ${$likesCount}, \$followers: ${$followers}, \$followersCount: ${$followersCount}, \$following: ${$following}, \$followingCount: ${$followingCount})';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
+
+    bool listEquals(List? a, List? b) {
+      if (a == null && b == null) return true;
+      if (a?.length != b?.length) return false;
+      for (int i = 0; i < (a?.length ?? 0); i++) {
+        if (a?[i] != b?[i]) return false;
+      }
+      return true;
+    }
 
     return other is UserEntity &&
         other.id == id &&
@@ -98,7 +177,15 @@ class UserEntity {
         other.image == image &&
         other.bio == bio &&
         other.createdAt == createdAt &&
-        other.updatedAt == updatedAt;
+        other.updatedAt == updatedAt &&
+        listEquals(other.$posts, $posts) &&
+        other.$postsCount == $postsCount &&
+        listEquals(other.$likes, $likes) &&
+        other.$likesCount == $likesCount &&
+        listEquals(other.$followers, $followers) &&
+        other.$followersCount == $followersCount &&
+        listEquals(other.$following, $following) &&
+        other.$followingCount == $followingCount;
   }
 
   @override
@@ -111,7 +198,15 @@ class UserEntity {
         image.hashCode ^
         bio.hashCode ^
         createdAt.hashCode ^
-        updatedAt.hashCode;
+        updatedAt.hashCode ^
+        $posts.hashCode ^
+        $postsCount.hashCode ^
+        $likes.hashCode ^
+        $likesCount.hashCode ^
+        $followers.hashCode ^
+        $followersCount.hashCode ^
+        $following.hashCode ^
+        $followingCount.hashCode;
   }
 }
 
@@ -122,6 +217,12 @@ class PostEntity {
   final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<PostEntity>? $replies;
+  final int? $repliesCount;
+  final List<LikeEntity>? $likes;
+  final int? $likesCount;
+  final PostEntity? $post;
+  final UserEntity? $user;
 
   const PostEntity({
     required this.id,
@@ -130,23 +231,42 @@ class PostEntity {
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
+    this.$replies,
+    this.$repliesCount,
+    this.$likes,
+    this.$likesCount,
+    this.$post,
+    this.$user,
   });
 
   PostEntity copyWith({
     String? id,
-    String? postId,
+    String? Function()? postId,
     String? content,
     String? userId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<PostEntity>? Function()? $replies,
+    int? Function()? $repliesCount,
+    List<LikeEntity>? Function()? $likes,
+    int? Function()? $likesCount,
+    PostEntity? Function()? $post,
+    UserEntity? Function()? $user,
   }) {
     return PostEntity(
       id: id ?? this.id,
-      postId: postId ?? this.postId,
+      postId: postId != null ? postId() : this.postId,
       content: content ?? this.content,
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      $replies: $replies != null ? $replies() : this.$replies,
+      $repliesCount:
+          $repliesCount != null ? $repliesCount() : this.$repliesCount,
+      $likes: $likes != null ? $likes() : this.$likes,
+      $likesCount: $likesCount != null ? $likesCount() : this.$likesCount,
+      $post: $post != null ? $post() : this.$post,
+      $user: $user != null ? $user() : this.$user,
     );
   }
 
@@ -158,6 +278,12 @@ class PostEntity {
       'user_id': userId,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'replies': $replies?.map((entity) => entity.toMap()).toList(),
+      'replies_count': $repliesCount,
+      'likes': $likes?.map((entity) => entity.toMap()).toList(),
+      'likes_count': $likesCount,
+      'post': $post?.toMap(),
+      'user': $user?.toMap(),
     };
   }
 
@@ -171,17 +297,42 @@ class PostEntity {
       userId: map['user_id'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
+      $replies: List<PostEntity>.from(
+        (map['replies'] as List?)?.map(
+              (innerMap) => PostEntity.fromMap(innerMap),
+            ) ??
+            [],
+      ),
+      $repliesCount: map['replies_count'],
+      $likes: List<LikeEntity>.from(
+        (map['likes'] as List?)?.map(
+              (innerMap) => LikeEntity.fromMap(innerMap),
+            ) ??
+            [],
+      ),
+      $likesCount: map['likes_count'],
+      $post: map['post'] != null ? PostEntity.fromMap(map['post']) : null,
+      $user: map['user'] != null ? UserEntity.fromMap(map['user']) : null,
     );
   }
 
   @override
   String toString() {
-    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, \$replies: ${$replies}, \$repliesCount: ${$repliesCount}, \$likes: ${$likes}, \$likesCount: ${$likesCount}, \$post: ${$post}, \$user: ${$user})';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
+
+    bool listEquals(List? a, List? b) {
+      if (a == null && b == null) return true;
+      if (a?.length != b?.length) return false;
+      for (int i = 0; i < (a?.length ?? 0); i++) {
+        if (a?[i] != b?[i]) return false;
+      }
+      return true;
+    }
 
     return other is PostEntity &&
         other.id == id &&
@@ -189,7 +340,13 @@ class PostEntity {
         other.content == content &&
         other.userId == userId &&
         other.createdAt == createdAt &&
-        other.updatedAt == updatedAt;
+        other.updatedAt == updatedAt &&
+        listEquals(other.$replies, $replies) &&
+        other.$repliesCount == $repliesCount &&
+        listEquals(other.$likes, $likes) &&
+        other.$likesCount == $likesCount &&
+        other.$post == $post &&
+        other.$user == $user;
   }
 
   @override
@@ -199,7 +356,13 @@ class PostEntity {
         content.hashCode ^
         userId.hashCode ^
         createdAt.hashCode ^
-        updatedAt.hashCode;
+        updatedAt.hashCode ^
+        $replies.hashCode ^
+        $repliesCount.hashCode ^
+        $likes.hashCode ^
+        $likesCount.hashCode ^
+        $post.hashCode ^
+        $user.hashCode;
   }
 }
 
@@ -208,12 +371,16 @@ class LikeEntity {
   final String postId;
   final String userId;
   final DateTime createdAt;
+  final PostEntity? $post;
+  final UserEntity? $user;
 
   const LikeEntity({
     required this.id,
     required this.postId,
     required this.userId,
     required this.createdAt,
+    this.$post,
+    this.$user,
   });
 
   LikeEntity copyWith({
@@ -221,12 +388,16 @@ class LikeEntity {
     String? postId,
     String? userId,
     DateTime? createdAt,
+    PostEntity? Function()? $post,
+    UserEntity? Function()? $user,
   }) {
     return LikeEntity(
       id: id ?? this.id,
       postId: postId ?? this.postId,
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
+      $post: $post != null ? $post() : this.$post,
+      $user: $user != null ? $user() : this.$user,
     );
   }
 
@@ -236,6 +407,8 @@ class LikeEntity {
       'post_id': postId,
       'user_id': userId,
       'created_at': createdAt,
+      'post': $post?.toMap(),
+      'user': $user?.toMap(),
     };
   }
 
@@ -247,12 +420,14 @@ class LikeEntity {
       postId: map['post_id'] as String,
       userId: map['user_id'] as String,
       createdAt: map['created_at'] as DateTime,
+      $post: map['post'] != null ? PostEntity.fromMap(map['post']) : null,
+      $user: map['user'] != null ? UserEntity.fromMap(map['user']) : null,
     );
   }
 
   @override
   String toString() {
-    return 'LikeEntity(id: $id, postId: $postId, userId: $userId, createdAt: $createdAt)';
+    return 'LikeEntity(id: $id, postId: $postId, userId: $userId, createdAt: $createdAt, \$post: ${$post}, \$user: ${$user})';
   }
 
   @override
@@ -263,12 +438,19 @@ class LikeEntity {
         other.id == id &&
         other.postId == postId &&
         other.userId == userId &&
-        other.createdAt == createdAt;
+        other.createdAt == createdAt &&
+        other.$post == $post &&
+        other.$user == $user;
   }
 
   @override
   int get hashCode {
-    return id.hashCode ^ postId.hashCode ^ userId.hashCode ^ createdAt.hashCode;
+    return id.hashCode ^
+        postId.hashCode ^
+        userId.hashCode ^
+        createdAt.hashCode ^
+        $post.hashCode ^
+        $user.hashCode;
   }
 }
 
@@ -277,12 +459,16 @@ class FollowerEntity {
   final String followerId;
   final String followingId;
   final DateTime createdAt;
+  final UserEntity? $follower;
+  final UserEntity? $following;
 
   const FollowerEntity({
     required this.id,
     required this.followerId,
     required this.followingId,
     required this.createdAt,
+    this.$follower,
+    this.$following,
   });
 
   FollowerEntity copyWith({
@@ -290,12 +476,16 @@ class FollowerEntity {
     String? followerId,
     String? followingId,
     DateTime? createdAt,
+    UserEntity? Function()? $follower,
+    UserEntity? Function()? $following,
   }) {
     return FollowerEntity(
       id: id ?? this.id,
       followerId: followerId ?? this.followerId,
       followingId: followingId ?? this.followingId,
       createdAt: createdAt ?? this.createdAt,
+      $follower: $follower != null ? $follower() : this.$follower,
+      $following: $following != null ? $following() : this.$following,
     );
   }
 
@@ -305,6 +495,8 @@ class FollowerEntity {
       'follower_id': followerId,
       'following_id': followingId,
       'created_at': createdAt,
+      'follower': $follower?.toMap(),
+      'following': $following?.toMap(),
     };
   }
 
@@ -316,12 +508,17 @@ class FollowerEntity {
       followerId: map['follower_id'] as String,
       followingId: map['following_id'] as String,
       createdAt: map['created_at'] as DateTime,
+      $follower:
+          map['follower'] != null ? UserEntity.fromMap(map['follower']) : null,
+      $following: map['following'] != null
+          ? UserEntity.fromMap(map['following'])
+          : null,
     );
   }
 
   @override
   String toString() {
-    return 'FollowerEntity(id: $id, followerId: $followerId, followingId: $followingId, createdAt: $createdAt)';
+    return 'FollowerEntity(id: $id, followerId: $followerId, followingId: $followingId, createdAt: $createdAt, \$follower: ${$follower}, \$following: ${$following})';
   }
 
   @override
@@ -332,7 +529,9 @@ class FollowerEntity {
         other.id == id &&
         other.followerId == followerId &&
         other.followingId == followingId &&
-        other.createdAt == createdAt;
+        other.createdAt == createdAt &&
+        other.$follower == $follower &&
+        other.$following == $following;
   }
 
   @override
@@ -340,6 +539,8 @@ class FollowerEntity {
     return id.hashCode ^
         followerId.hashCode ^
         followingId.hashCode ^
-        createdAt.hashCode;
+        createdAt.hashCode ^
+        $follower.hashCode ^
+        $following.hashCode;
   }
 }

@@ -1,10 +1,11 @@
 name: dsql
 description: Dart SQL library for generating .dart files from .sql files
-version: 1.0.4
+version: 1.0.5
 homepage: https://github.com/tihrasguinho/dsql
 topics:
   - postgres
   - orm
+  - prisma-like
 
 executables: 
   dsql: dsql
