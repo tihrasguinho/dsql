@@ -1,3 +1,4 @@
+import 'package:dsql/dsql.dart';
 import 'package:example/generated/dsql.dart';
 
 void main() async {
@@ -6,16 +7,19 @@ void main() async {
     verbose: true,
   );
 
-  final result = await dsql.users.findOne();
-
-  result.when(
-    (success) {
-      print(success);
-    },
-    (error) {
-      print(error);
-    },
-  );
+  await dsql.users
+      .findMany(
+        FindManyUserParams(
+          whereId: Where.eq('faf2fa73-7f63-4012-b02c-4841dc422b3b'),
+          includePosts: IncludeUserPosts(pageSize: 1, page: 2),
+        ),
+      )
+      .then(
+        (result) => result.when(
+          (success) => print(success),
+          (error) => print(error),
+        ),
+      );
 
 //   --------------------------------------------------------------------------------
 //   SQL => INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;

@@ -208,102 +208,502 @@ class UsersRepository {
     }
   }
 
-  AsyncResult<List<UserEntity>, Exception> findMany({
-    Where? id,
-    Where? name,
-    Where? username,
-    Where? email,
-    Where? password,
-    Where? image,
-    Where? bio,
-    Where? createdAt,
-    Where? updatedAt,
-    int? limit,
-    int? offset,
-    OrderBy? orderBy,
-  }) async {
+  AsyncResult<Pagination<UserEntity>, Exception> findMany(
+      [FindManyUserParams params = const FindManyUserParams()]) async {
     try {
-      String query = 'SELECT * FROM tb_users;';
+      final data = await _conn.runTx<Pagination<UserEntity>>(
+        (tx) async {
+          final offset = switch (params.page != null) {
+            false => 0,
+            true => params.page! - 1 < 0 ? 0 : params.page! - 1,
+          };
 
-      final wheres = <String, Where>{
-        if (id != null) 'id': id,
-        if (name != null) 'name': name,
-        if (username != null) 'username': username,
-        if (email != null) 'email': email,
-        if (password != null) 'password': password,
-        if (image != null) 'image': image,
-        if (bio != null) 'bio': bio,
-        if (createdAt != null) 'created_at': createdAt,
-        if (updatedAt != null) 'updated_at': updatedAt,
-      };
+          final limit = params.pageSize ?? 10;
 
-      if (wheres.isNotEmpty) {
-        query =
-            'SELECT * FROM tb_users WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
-      }
+          final orderBy = switch (params.orderBy != null) {
+            false => null,
+            true => params.orderBy,
+          };
 
-      if (offset != null) {
-        query += ' OFFSET $offset';
-      }
+          final baseQuery =
+              'SELECT * FROM tb_users WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
 
-      if (limit != null) {
-        query += ' LIMIT $limit';
-      }
+          final countQuery =
+              'SELECT COUNT(*) FROM tb_users WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
 
-      if (orderBy != null) {
-        query += ' ORDER BY ${orderBy.sql}';
-      }
+          final baseParameters =
+              params.wheres.values.map((w) => w.value).toList();
 
-      query += ';';
+          if (verbose) {
+            print('-' * 80);
 
-      if (verbose) {
-        print(
-            '--------------------------------------------------------------------------------');
+            print('QUERY: $baseQuery');
 
-        print('SQL => $query');
+            print('PARAMETERS: $baseParameters');
 
-        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+            print('-' * 80);
+          }
 
-        print(
-            '--------------------------------------------------------------------------------');
-      }
+          final resultBase = await tx.execute(
+            baseQuery,
+            parameters: baseParameters,
+          );
 
-      final result = await _conn.execute(
-        query,
-        parameters: wheres.values.map((w) => w.value).toList(),
-      );
+          final resultCount = await tx.execute(
+            countQuery,
+            parameters: baseParameters,
+          );
 
-      final entities = List<UserEntity>.from(
-        result.map(
-          (row) {
-            final [
-              String $id,
-              String $name,
-              String $username,
-              String $email,
-              String $password,
-              String? $image,
-              String? $bio,
-              DateTime $createdAt,
-              DateTime $updatedAt,
-            ] = row as List;
+          final count = resultCount[0][0] as int;
 
-            return UserEntity(
-              id: $id,
-              name: $name,
-              username: $username,
-              email: $email,
-              password: $password,
-              image: $image,
-              bio: $bio,
-              createdAt: $createdAt,
-              updatedAt: $updatedAt,
+          if (resultBase.isEmpty) {
+            await tx.rollback();
+            return Pagination<UserEntity>(
+              items: [],
+              total: 0,
+              page: offset,
+              pageSize: limit,
+              hasNext: false,
+              hasPrevious: false,
             );
-          },
-        ),
+          }
+
+          final entitiesBase = List<UserEntity>.from(
+            resultBase.map(
+              (row) {
+                final [
+                  String id,
+                  String name,
+                  String username,
+                  String email,
+                  String password,
+                  String? image,
+                  String? bio,
+                  DateTime createdAt,
+                  DateTime updatedAt,
+                ] = row as List;
+
+                return UserEntity(
+                  id: id,
+                  name: name,
+                  username: username,
+                  email: email,
+                  password: password,
+                  image: image,
+                  bio: bio,
+                  createdAt: createdAt,
+                  updatedAt: updatedAt,
+                );
+              },
+            ),
+          );
+
+          if (params.includePosts != null) {
+            for (var i = 0; i < entitiesBase.length; i++) {
+              final entity = entitiesBase[i];
+
+              final joinedWheres = <String, Where>{
+                if (params.includePosts?.wheres.isNotEmpty ?? false)
+                  ...params.includePosts!.wheres,
+                'user_id': Where.eq(entity.id),
+              };
+
+              final joinedOffset = switch (params.includePosts?.page != null) {
+                false => 0,
+                true => params.includePosts!.page! - 1 == 0
+                    ? 0
+                    : params.includePosts!.page! - 1,
+              };
+
+              final joinedLimit = params.includePosts?.pageSize ?? 10;
+
+              final joinedOrderBy =
+                  switch (params.includePosts?.orderBy != null) {
+                false => null,
+                true => params.includePosts!.orderBy,
+              };
+
+              final joinedQuery =
+                  'SELECT * FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+
+              final joinedParameters =
+                  joinedWheres.values.map((w) => w.value).toList();
+
+              final joinedCountQuery =
+                  switch (params.includePosts?.withCount ?? false) {
+                false => null,
+                true =>
+                  'SELECT COUNT(*) FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
+              };
+
+              if (verbose) {
+                print('-' * 80);
+
+                print('QUERY: $joinedQuery');
+
+                if (joinedCountQuery != null) {
+                  print('COUNT QUERY: $joinedCountQuery');
+                }
+
+                print('PARAMETERS: $joinedParameters');
+
+                print('-' * 80);
+              }
+
+              int? postsCount;
+
+              final joinedResult = await tx.execute(
+                joinedQuery,
+                parameters: joinedParameters,
+              );
+
+              if (joinedCountQuery != null) {
+                final joinedCountResult = await tx.execute(
+                  joinedCountQuery,
+                  parameters: joinedParameters,
+                );
+
+                if (joinedCountResult.isNotEmpty) {
+                  postsCount = joinedCountResult.first.first as int;
+                }
+              }
+
+              final joinedEntities = List<PostEntity>.from(
+                joinedResult.map(
+                  (row) {
+                    final [
+                      String $id,
+                      String? $postId,
+                      String $content,
+                      String $userId,
+                      DateTime $createdAt,
+                      DateTime $updatedAt,
+                    ] = row as List;
+
+                    return PostEntity(
+                      id: $id,
+                      postId: $postId,
+                      content: $content,
+                      userId: $userId,
+                      createdAt: $createdAt,
+                      updatedAt: $updatedAt,
+                    );
+                  },
+                ),
+              );
+
+              entitiesBase[i] = entity.copyWith(
+                $posts: () => joinedEntities,
+                $postsCount: () => postsCount,
+              );
+            }
+          }
+
+          if (params.includeLikes != null) {
+            for (var i = 0; i < entitiesBase.length; i++) {
+              final entity = entitiesBase[i];
+
+              final joinedWheres = <String, Where>{
+                if (params.includeLikes?.wheres.isNotEmpty ?? false)
+                  ...params.includeLikes!.wheres,
+                'user_id': Where.eq(entity.id),
+              };
+
+              final joinedOffset = switch (params.includeLikes?.page != null) {
+                false => 0,
+                true => params.includeLikes!.page! - 1 == 0
+                    ? 0
+                    : params.includeLikes!.page! - 1,
+              };
+
+              final joinedLimit = params.includeLikes?.pageSize ?? 10;
+
+              final joinedOrderBy =
+                  switch (params.includeLikes?.orderBy != null) {
+                false => null,
+                true => params.includeLikes!.orderBy,
+              };
+
+              final joinedQuery =
+                  'SELECT * FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+
+              final joinedParameters =
+                  joinedWheres.values.map((w) => w.value).toList();
+
+              final joinedCountQuery =
+                  switch (params.includeLikes?.withCount ?? false) {
+                false => null,
+                true =>
+                  'SELECT COUNT(*) FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
+              };
+
+              if (verbose) {
+                print('-' * 80);
+
+                print('QUERY: $joinedQuery');
+
+                if (joinedCountQuery != null) {
+                  print('COUNT QUERY: $joinedCountQuery');
+                }
+
+                print('PARAMETERS: $joinedParameters');
+
+                print('-' * 80);
+              }
+
+              int? likesCount;
+
+              final joinedResult = await tx.execute(
+                joinedQuery,
+                parameters: joinedParameters,
+              );
+
+              if (joinedCountQuery != null) {
+                final joinedCountResult = await tx.execute(
+                  joinedCountQuery,
+                  parameters: joinedParameters,
+                );
+
+                if (joinedCountResult.isNotEmpty) {
+                  likesCount = joinedCountResult.first.first as int;
+                }
+              }
+
+              final joinedEntities = List<LikeEntity>.from(
+                joinedResult.map(
+                  (row) {
+                    final [
+                      String $id,
+                      String $postId,
+                      String $userId,
+                      DateTime $createdAt,
+                    ] = row as List;
+
+                    return LikeEntity(
+                      id: $id,
+                      postId: $postId,
+                      userId: $userId,
+                      createdAt: $createdAt,
+                    );
+                  },
+                ),
+              );
+
+              entitiesBase[i] = entity.copyWith(
+                $likes: () => joinedEntities,
+                $likesCount: () => likesCount,
+              );
+            }
+          }
+
+          if (params.includeFollowers != null) {
+            for (var i = 0; i < entitiesBase.length; i++) {
+              final entity = entitiesBase[i];
+
+              final joinedWheres = <String, Where>{
+                if (params.includeFollowers?.wheres.isNotEmpty ?? false)
+                  ...params.includeFollowers!.wheres,
+                'follower_id': Where.eq(entity.id),
+              };
+
+              final joinedOffset =
+                  switch (params.includeFollowers?.page != null) {
+                false => 0,
+                true => params.includeFollowers!.page! - 1 == 0
+                    ? 0
+                    : params.includeFollowers!.page! - 1,
+              };
+
+              final joinedLimit = params.includeFollowers?.pageSize ?? 10;
+
+              final joinedOrderBy =
+                  switch (params.includeFollowers?.orderBy != null) {
+                false => null,
+                true => params.includeFollowers!.orderBy,
+              };
+
+              final joinedQuery =
+                  'SELECT * FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+
+              final joinedParameters =
+                  joinedWheres.values.map((w) => w.value).toList();
+
+              final joinedCountQuery =
+                  switch (params.includeFollowers?.withCount ?? false) {
+                false => null,
+                true =>
+                  'SELECT COUNT(*) FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
+              };
+
+              if (verbose) {
+                print('-' * 80);
+
+                print('QUERY: $joinedQuery');
+
+                if (joinedCountQuery != null) {
+                  print('COUNT QUERY: $joinedCountQuery');
+                }
+
+                print('PARAMETERS: $joinedParameters');
+
+                print('-' * 80);
+              }
+
+              int? followersCount;
+
+              final joinedResult = await tx.execute(
+                joinedQuery,
+                parameters: joinedParameters,
+              );
+
+              if (joinedCountQuery != null) {
+                final joinedCountResult = await tx.execute(
+                  joinedCountQuery,
+                  parameters: joinedParameters,
+                );
+
+                if (joinedCountResult.isNotEmpty) {
+                  followersCount = joinedCountResult.first.first as int;
+                }
+              }
+
+              final joinedEntities = List<FollowerEntity>.from(
+                joinedResult.map(
+                  (row) {
+                    final [
+                      String $id,
+                      String $followerId,
+                      String $followingId,
+                      DateTime $createdAt,
+                    ] = row as List;
+
+                    return FollowerEntity(
+                      id: $id,
+                      followerId: $followerId,
+                      followingId: $followingId,
+                      createdAt: $createdAt,
+                    );
+                  },
+                ),
+              );
+
+              entitiesBase[i] = entity.copyWith(
+                $followers: () => joinedEntities,
+                $followersCount: () => followersCount,
+              );
+            }
+          }
+
+          if (params.includeFollowing != null) {
+            for (var i = 0; i < entitiesBase.length; i++) {
+              final entity = entitiesBase[i];
+
+              final joinedWheres = <String, Where>{
+                if (params.includeFollowing?.wheres.isNotEmpty ?? false)
+                  ...params.includeFollowing!.wheres,
+                'following_id': Where.eq(entity.id),
+              };
+
+              final joinedOffset =
+                  switch (params.includeFollowing?.page != null) {
+                false => 0,
+                true => params.includeFollowing!.page! - 1 == 0
+                    ? 0
+                    : params.includeFollowing!.page! - 1,
+              };
+
+              final joinedLimit = params.includeFollowing?.pageSize ?? 10;
+
+              final joinedOrderBy =
+                  switch (params.includeFollowing?.orderBy != null) {
+                false => null,
+                true => params.includeFollowing!.orderBy,
+              };
+
+              final joinedQuery =
+                  'SELECT * FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+
+              final joinedParameters =
+                  joinedWheres.values.map((w) => w.value).toList();
+
+              final joinedCountQuery =
+                  switch (params.includeFollowing?.withCount ?? false) {
+                false => null,
+                true =>
+                  'SELECT COUNT(*) FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
+              };
+
+              if (verbose) {
+                print('-' * 80);
+
+                print('QUERY: $joinedQuery');
+
+                if (joinedCountQuery != null) {
+                  print('COUNT QUERY: $joinedCountQuery');
+                }
+
+                print('PARAMETERS: $joinedParameters');
+
+                print('-' * 80);
+              }
+
+              int? followingCount;
+
+              final joinedResult = await tx.execute(
+                joinedQuery,
+                parameters: joinedParameters,
+              );
+
+              if (joinedCountQuery != null) {
+                final joinedCountResult = await tx.execute(
+                  joinedCountQuery,
+                  parameters: joinedParameters,
+                );
+
+                if (joinedCountResult.isNotEmpty) {
+                  followingCount = joinedCountResult.first.first as int;
+                }
+              }
+
+              final joinedEntities = List<FollowerEntity>.from(
+                joinedResult.map(
+                  (row) {
+                    final [
+                      String $id,
+                      String $followerId,
+                      String $followingId,
+                      DateTime $createdAt,
+                    ] = row as List;
+
+                    return FollowerEntity(
+                      id: $id,
+                      followerId: $followerId,
+                      followingId: $followingId,
+                      createdAt: $createdAt,
+                    );
+                  },
+                ),
+              );
+
+              entitiesBase[i] = entity.copyWith(
+                $following: () => joinedEntities,
+                $followingCount: () => followingCount,
+              );
+            }
+          }
+
+          return Pagination<UserEntity>(
+            items: entitiesBase,
+            total: entitiesBase.length,
+            page: offset,
+            pageSize: limit,
+            hasNext: (offset + 1) * limit > count,
+            hasPrevious: (offset + 1) > 0,
+          );
+        },
       );
 
-      return Success(entities);
+      return Success(data);
     } on Exception catch (e) {
       return Error(e);
     }
@@ -761,6 +1161,170 @@ class UsersRepository {
   }
 }
 
+class FindManyUserParams {
+  final Where? whereId;
+  final Where? whereName;
+  final Where? whereUsername;
+  final Where? whereEmail;
+  final Where? wherePassword;
+  final Where? whereImage;
+  final Where? whereBio;
+  final Where? whereCreatedAt;
+  final Where? whereUpdatedAt;
+  final IncludeUserPosts? includePosts;
+  final IncludeUserLikes? includeLikes;
+  final IncludeUserFollowers? includeFollowers;
+  final IncludeUserFollowing? includeFollowing;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyUserParams({
+    this.whereId,
+    this.whereName,
+    this.whereUsername,
+    this.whereEmail,
+    this.wherePassword,
+    this.whereImage,
+    this.whereBio,
+    this.whereCreatedAt,
+    this.whereUpdatedAt,
+    this.includePosts,
+    this.includeLikes,
+    this.includeFollowers,
+    this.includeFollowing,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+  });
+
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (whereName != null) 'name': whereName!,
+        if (whereUsername != null) 'username': whereUsername!,
+        if (whereEmail != null) 'email': whereEmail!,
+        if (wherePassword != null) 'password': wherePassword!,
+        if (whereImage != null) 'image': whereImage!,
+        if (whereBio != null) 'bio': whereBio!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt!,
+        ...?includePosts?.wheres,
+        ...?includeLikes?.wheres,
+        ...?includeFollowers?.wheres,
+        ...?includeFollowing?.wheres,
+      };
+}
+
+class IncludeUserPosts {
+  final Where? id;
+  final Where? postId;
+  final Where? content;
+  final Where? createdAt;
+  final Where? updatedAt;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+  final bool? withCount;
+
+  const IncludeUserPosts({
+    this.id,
+    this.postId,
+    this.content,
+    this.createdAt,
+    this.updatedAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+    this.withCount,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (postId != null) 'post_id': postId!,
+        if (content != null) 'content': content!,
+        if (createdAt != null) 'created_at': createdAt!,
+        if (updatedAt != null) 'updated_at': updatedAt!,
+      };
+}
+
+class IncludeUserLikes {
+  final Where? id;
+  final Where? postId;
+  final Where? createdAt;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+  final bool? withCount;
+
+  const IncludeUserLikes({
+    this.id,
+    this.postId,
+    this.createdAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+    this.withCount,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (postId != null) 'post_id': postId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+}
+
+class IncludeUserFollowers {
+  final Where? id;
+  final Where? followingId;
+  final Where? createdAt;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+  final bool? withCount;
+
+  const IncludeUserFollowers({
+    this.id,
+    this.followingId,
+    this.createdAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+    this.withCount,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (followingId != null) 'following_id': followingId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+}
+
+class IncludeUserFollowing {
+  final Where? id;
+  final Where? followerId;
+  final Where? createdAt;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+  final bool? withCount;
+
+  const IncludeUserFollowing({
+    this.id,
+    this.followerId,
+    this.createdAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+    this.withCount,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (followerId != null) 'follower_id': followerId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+}
+
 class PostsRepository {
   final Connection _conn;
   final bool verbose;
@@ -893,90 +1457,301 @@ class PostsRepository {
     }
   }
 
-  AsyncResult<List<PostEntity>, Exception> findMany({
-    Where? id,
-    Where? postId,
-    Where? content,
-    Where? userId,
-    Where? createdAt,
-    Where? updatedAt,
-    int? limit,
-    int? offset,
-    OrderBy? orderBy,
-  }) async {
+  AsyncResult<Pagination<PostEntity>, Exception> findMany(
+      [FindManyPostParams params = const FindManyPostParams()]) async {
     try {
-      String query = 'SELECT * FROM tb_posts;';
+      final data = await _conn.runTx<Pagination<PostEntity>>(
+        (tx) async {
+          final offset = switch (params.page != null) {
+            false => 0,
+            true => params.page! - 1 < 0 ? 0 : params.page! - 1,
+          };
 
-      final wheres = <String, Where>{
-        if (id != null) 'id': id,
-        if (postId != null) 'post_id': postId,
-        if (content != null) 'content': content,
-        if (userId != null) 'user_id': userId,
-        if (createdAt != null) 'created_at': createdAt,
-        if (updatedAt != null) 'updated_at': updatedAt,
-      };
+          final limit = params.pageSize ?? 10;
 
-      if (wheres.isNotEmpty) {
-        query =
-            'SELECT * FROM tb_posts WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
-      }
+          final orderBy = switch (params.orderBy != null) {
+            false => null,
+            true => params.orderBy,
+          };
 
-      if (offset != null) {
-        query += ' OFFSET $offset';
-      }
+          final baseQuery =
+              'SELECT * FROM tb_posts WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
 
-      if (limit != null) {
-        query += ' LIMIT $limit';
-      }
+          final countQuery =
+              'SELECT COUNT(*) FROM tb_posts WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
 
-      if (orderBy != null) {
-        query += ' ORDER BY ${orderBy.sql}';
-      }
+          final baseParameters =
+              params.wheres.values.map((w) => w.value).toList();
 
-      query += ';';
+          if (verbose) {
+            print('-' * 80);
 
-      if (verbose) {
-        print(
-            '--------------------------------------------------------------------------------');
+            print('QUERY: $baseQuery');
 
-        print('SQL => $query');
+            print('PARAMETERS: $baseParameters');
 
-        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+            print('-' * 80);
+          }
 
-        print(
-            '--------------------------------------------------------------------------------');
-      }
+          final resultBase = await tx.execute(
+            baseQuery,
+            parameters: baseParameters,
+          );
 
-      final result = await _conn.execute(
-        query,
-        parameters: wheres.values.map((w) => w.value).toList(),
-      );
+          final resultCount = await tx.execute(
+            countQuery,
+            parameters: baseParameters,
+          );
 
-      final entities = List<PostEntity>.from(
-        result.map(
-          (row) {
-            final [
-              String $id,
-              String? $postId,
-              String $content,
-              String $userId,
-              DateTime $createdAt,
-              DateTime $updatedAt,
-            ] = row as List;
+          final count = resultCount[0][0] as int;
 
-            return PostEntity(
-              id: $id,
-              postId: $postId,
-              content: $content,
-              userId: $userId,
-              createdAt: $createdAt,
-              updatedAt: $updatedAt,
+          if (resultBase.isEmpty) {
+            await tx.rollback();
+            return Pagination<PostEntity>(
+              items: [],
+              total: 0,
+              page: offset,
+              pageSize: limit,
+              hasNext: false,
+              hasPrevious: false,
             );
-          },
-        ),
+          }
+
+          final entitiesBase = List<PostEntity>.from(
+            resultBase.map(
+              (row) {
+                final [
+                  String id,
+                  String? postId,
+                  String content,
+                  String userId,
+                  DateTime createdAt,
+                  DateTime updatedAt,
+                ] = row as List;
+
+                return PostEntity(
+                  id: id,
+                  postId: postId,
+                  content: content,
+                  userId: userId,
+                  createdAt: createdAt,
+                  updatedAt: updatedAt,
+                );
+              },
+            ),
+          );
+
+          if (params.includeReplies != null) {
+            for (var i = 0; i < entitiesBase.length; i++) {
+              final entity = entitiesBase[i];
+
+              final joinedWheres = <String, Where>{
+                if (params.includeReplies?.wheres.isNotEmpty ?? false)
+                  ...params.includeReplies!.wheres,
+                'post_id': Where.eq(entity.id),
+              };
+
+              final joinedOffset =
+                  switch (params.includeReplies?.page != null) {
+                false => 0,
+                true => params.includeReplies!.page! - 1 == 0
+                    ? 0
+                    : params.includeReplies!.page! - 1,
+              };
+
+              final joinedLimit = params.includeReplies?.pageSize ?? 10;
+
+              final joinedOrderBy =
+                  switch (params.includeReplies?.orderBy != null) {
+                false => null,
+                true => params.includeReplies!.orderBy,
+              };
+
+              final joinedQuery =
+                  'SELECT * FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+
+              final joinedParameters =
+                  joinedWheres.values.map((w) => w.value).toList();
+
+              final joinedCountQuery =
+                  switch (params.includeReplies?.withCount ?? false) {
+                false => null,
+                true =>
+                  'SELECT COUNT(*) FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
+              };
+
+              if (verbose) {
+                print('-' * 80);
+
+                print('QUERY: $joinedQuery');
+
+                if (joinedCountQuery != null) {
+                  print('COUNT QUERY: $joinedCountQuery');
+                }
+
+                print('PARAMETERS: $joinedParameters');
+
+                print('-' * 80);
+              }
+
+              int? repliesCount;
+
+              final joinedResult = await tx.execute(
+                joinedQuery,
+                parameters: joinedParameters,
+              );
+
+              if (joinedCountQuery != null) {
+                final joinedCountResult = await tx.execute(
+                  joinedCountQuery,
+                  parameters: joinedParameters,
+                );
+
+                if (joinedCountResult.isNotEmpty) {
+                  repliesCount = joinedCountResult.first.first as int;
+                }
+              }
+
+              final joinedEntities = List<PostEntity>.from(
+                joinedResult.map(
+                  (row) {
+                    final [
+                      String $id,
+                      String? $postId,
+                      String $content,
+                      String $userId,
+                      DateTime $createdAt,
+                      DateTime $updatedAt,
+                    ] = row as List;
+
+                    return PostEntity(
+                      id: $id,
+                      postId: $postId,
+                      content: $content,
+                      userId: $userId,
+                      createdAt: $createdAt,
+                      updatedAt: $updatedAt,
+                    );
+                  },
+                ),
+              );
+
+              entitiesBase[i] = entity.copyWith(
+                $replies: () => joinedEntities,
+                $repliesCount: () => repliesCount,
+              );
+            }
+          }
+
+          if (params.includeLikes != null) {
+            for (var i = 0; i < entitiesBase.length; i++) {
+              final entity = entitiesBase[i];
+
+              final joinedWheres = <String, Where>{
+                if (params.includeLikes?.wheres.isNotEmpty ?? false)
+                  ...params.includeLikes!.wheres,
+                'post_id': Where.eq(entity.id),
+              };
+
+              final joinedOffset = switch (params.includeLikes?.page != null) {
+                false => 0,
+                true => params.includeLikes!.page! - 1 == 0
+                    ? 0
+                    : params.includeLikes!.page! - 1,
+              };
+
+              final joinedLimit = params.includeLikes?.pageSize ?? 10;
+
+              final joinedOrderBy =
+                  switch (params.includeLikes?.orderBy != null) {
+                false => null,
+                true => params.includeLikes!.orderBy,
+              };
+
+              final joinedQuery =
+                  'SELECT * FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+
+              final joinedParameters =
+                  joinedWheres.values.map((w) => w.value).toList();
+
+              final joinedCountQuery =
+                  switch (params.includeLikes?.withCount ?? false) {
+                false => null,
+                true =>
+                  'SELECT COUNT(*) FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
+              };
+
+              if (verbose) {
+                print('-' * 80);
+
+                print('QUERY: $joinedQuery');
+
+                if (joinedCountQuery != null) {
+                  print('COUNT QUERY: $joinedCountQuery');
+                }
+
+                print('PARAMETERS: $joinedParameters');
+
+                print('-' * 80);
+              }
+
+              int? likesCount;
+
+              final joinedResult = await tx.execute(
+                joinedQuery,
+                parameters: joinedParameters,
+              );
+
+              if (joinedCountQuery != null) {
+                final joinedCountResult = await tx.execute(
+                  joinedCountQuery,
+                  parameters: joinedParameters,
+                );
+
+                if (joinedCountResult.isNotEmpty) {
+                  likesCount = joinedCountResult.first.first as int;
+                }
+              }
+
+              final joinedEntities = List<LikeEntity>.from(
+                joinedResult.map(
+                  (row) {
+                    final [
+                      String $id,
+                      String $postId,
+                      String $userId,
+                      DateTime $createdAt,
+                    ] = row as List;
+
+                    return LikeEntity(
+                      id: $id,
+                      postId: $postId,
+                      userId: $userId,
+                      createdAt: $createdAt,
+                    );
+                  },
+                ),
+              );
+
+              entitiesBase[i] = entity.copyWith(
+                $likes: () => joinedEntities,
+                $likesCount: () => likesCount,
+              );
+            }
+          }
+
+          return Pagination<PostEntity>(
+            items: entitiesBase,
+            total: entitiesBase.length,
+            page: offset,
+            pageSize: limit,
+            hasNext: (offset + 1) * limit > count,
+            hasPrevious: (offset + 1) > 0,
+          );
+        },
       );
 
-      return Success(entities);
+      return Success(data);
     } on Exception catch (e) {
       return Error(e);
     }
@@ -1272,6 +2047,103 @@ class PostsRepository {
   }
 }
 
+class FindManyPostParams {
+  final Where? whereId;
+  final Where? wherePostId;
+  final Where? whereContent;
+  final Where? whereUserId;
+  final Where? whereCreatedAt;
+  final Where? whereUpdatedAt;
+  final IncludePostReplies? includeReplies;
+  final IncludePostLikes? includeLikes;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyPostParams({
+    this.whereId,
+    this.wherePostId,
+    this.whereContent,
+    this.whereUserId,
+    this.whereCreatedAt,
+    this.whereUpdatedAt,
+    this.includeReplies,
+    this.includeLikes,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+  });
+
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (wherePostId != null) 'post_id': wherePostId!,
+        if (whereContent != null) 'content': whereContent!,
+        if (whereUserId != null) 'user_id': whereUserId!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt!,
+        ...?includeReplies?.wheres,
+        ...?includeLikes?.wheres,
+      };
+}
+
+class IncludePostReplies {
+  final Where? id;
+  final Where? content;
+  final Where? userId;
+  final Where? createdAt;
+  final Where? updatedAt;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+  final bool? withCount;
+
+  const IncludePostReplies({
+    this.id,
+    this.content,
+    this.userId,
+    this.createdAt,
+    this.updatedAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+    this.withCount,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (content != null) 'content': content!,
+        if (userId != null) 'user_id': userId!,
+        if (createdAt != null) 'created_at': createdAt!,
+        if (updatedAt != null) 'updated_at': updatedAt!,
+      };
+}
+
+class IncludePostLikes {
+  final Where? id;
+  final Where? userId;
+  final Where? createdAt;
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+  final bool? withCount;
+
+  const IncludePostLikes({
+    this.id,
+    this.userId,
+    this.createdAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+    this.withCount,
+  });
+
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (userId != null) 'user_id': userId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+}
+
 class LikesRepository {
   final Connection _conn;
   final bool verbose;
@@ -1396,82 +2268,98 @@ class LikesRepository {
     }
   }
 
-  AsyncResult<List<LikeEntity>, Exception> findMany({
-    Where? id,
-    Where? postId,
-    Where? userId,
-    Where? createdAt,
-    int? limit,
-    int? offset,
-    OrderBy? orderBy,
-  }) async {
+  AsyncResult<Pagination<LikeEntity>, Exception> findMany(
+      [FindManyLikeParams params = const FindManyLikeParams()]) async {
     try {
-      String query = 'SELECT * FROM tb_likes;';
+      final data = await _conn.runTx<Pagination<LikeEntity>>(
+        (tx) async {
+          final offset = switch (params.page != null) {
+            false => 0,
+            true => params.page! - 1 < 0 ? 0 : params.page! - 1,
+          };
 
-      final wheres = <String, Where>{
-        if (id != null) 'id': id,
-        if (postId != null) 'post_id': postId,
-        if (userId != null) 'user_id': userId,
-        if (createdAt != null) 'created_at': createdAt,
-      };
+          final limit = params.pageSize ?? 10;
 
-      if (wheres.isNotEmpty) {
-        query =
-            'SELECT * FROM tb_likes WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
-      }
+          final orderBy = switch (params.orderBy != null) {
+            false => null,
+            true => params.orderBy,
+          };
 
-      if (offset != null) {
-        query += ' OFFSET $offset';
-      }
+          final baseQuery =
+              'SELECT * FROM tb_likes WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
 
-      if (limit != null) {
-        query += ' LIMIT $limit';
-      }
+          final countQuery =
+              'SELECT COUNT(*) FROM tb_likes WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
 
-      if (orderBy != null) {
-        query += ' ORDER BY ${orderBy.sql}';
-      }
+          final baseParameters =
+              params.wheres.values.map((w) => w.value).toList();
 
-      query += ';';
+          if (verbose) {
+            print('-' * 80);
 
-      if (verbose) {
-        print(
-            '--------------------------------------------------------------------------------');
+            print('QUERY: $baseQuery');
 
-        print('SQL => $query');
+            print('PARAMETERS: $baseParameters');
 
-        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+            print('-' * 80);
+          }
 
-        print(
-            '--------------------------------------------------------------------------------');
-      }
+          final resultBase = await tx.execute(
+            baseQuery,
+            parameters: baseParameters,
+          );
 
-      final result = await _conn.execute(
-        query,
-        parameters: wheres.values.map((w) => w.value).toList(),
-      );
+          final resultCount = await tx.execute(
+            countQuery,
+            parameters: baseParameters,
+          );
 
-      final entities = List<LikeEntity>.from(
-        result.map(
-          (row) {
-            final [
-              String $id,
-              String $postId,
-              String $userId,
-              DateTime $createdAt,
-            ] = row as List;
+          final count = resultCount[0][0] as int;
 
-            return LikeEntity(
-              id: $id,
-              postId: $postId,
-              userId: $userId,
-              createdAt: $createdAt,
+          if (resultBase.isEmpty) {
+            await tx.rollback();
+            return Pagination<LikeEntity>(
+              items: [],
+              total: 0,
+              page: offset,
+              pageSize: limit,
+              hasNext: false,
+              hasPrevious: false,
             );
-          },
-        ),
+          }
+
+          final entitiesBase = List<LikeEntity>.from(
+            resultBase.map(
+              (row) {
+                final [
+                  String id,
+                  String postId,
+                  String userId,
+                  DateTime createdAt,
+                ] = row as List;
+
+                return LikeEntity(
+                  id: id,
+                  postId: postId,
+                  userId: userId,
+                  createdAt: createdAt,
+                );
+              },
+            ),
+          );
+
+          return Pagination<LikeEntity>(
+            items: entitiesBase,
+            total: entitiesBase.length,
+            page: offset,
+            pageSize: limit,
+            hasNext: (offset + 1) * limit > count,
+            hasPrevious: (offset + 1) > 0,
+          );
+        },
       );
 
-      return Success(entities);
+      return Success(data);
     } on Exception catch (e) {
       return Error(e);
     }
@@ -1735,6 +2623,34 @@ class LikesRepository {
   }
 }
 
+class FindManyLikeParams {
+  final Where? whereId;
+  final Where? wherePostId;
+  final Where? whereUserId;
+  final Where? whereCreatedAt;
+
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyLikeParams({
+    this.whereId,
+    this.wherePostId,
+    this.whereUserId,
+    this.whereCreatedAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+  });
+
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (wherePostId != null) 'post_id': wherePostId!,
+        if (whereUserId != null) 'user_id': whereUserId!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+      };
+}
+
 class FollowersRepository {
   final Connection _conn;
   final bool verbose;
@@ -1861,82 +2777,98 @@ class FollowersRepository {
     }
   }
 
-  AsyncResult<List<FollowerEntity>, Exception> findMany({
-    Where? id,
-    Where? followerId,
-    Where? followingId,
-    Where? createdAt,
-    int? limit,
-    int? offset,
-    OrderBy? orderBy,
-  }) async {
+  AsyncResult<Pagination<FollowerEntity>, Exception> findMany(
+      [FindManyFollowerParams params = const FindManyFollowerParams()]) async {
     try {
-      String query = 'SELECT * FROM tb_followers;';
+      final data = await _conn.runTx<Pagination<FollowerEntity>>(
+        (tx) async {
+          final offset = switch (params.page != null) {
+            false => 0,
+            true => params.page! - 1 < 0 ? 0 : params.page! - 1,
+          };
 
-      final wheres = <String, Where>{
-        if (id != null) 'id': id,
-        if (followerId != null) 'follower_id': followerId,
-        if (followingId != null) 'following_id': followingId,
-        if (createdAt != null) 'created_at': createdAt,
-      };
+          final limit = params.pageSize ?? 10;
 
-      if (wheres.isNotEmpty) {
-        query =
-            'SELECT * FROM tb_followers WHERE ${wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
-      }
+          final orderBy = switch (params.orderBy != null) {
+            false => null,
+            true => params.orderBy,
+          };
 
-      if (offset != null) {
-        query += ' OFFSET $offset';
-      }
+          final baseQuery =
+              'SELECT * FROM tb_followers WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
 
-      if (limit != null) {
-        query += ' LIMIT $limit';
-      }
+          final countQuery =
+              'SELECT COUNT(*) FROM tb_followers WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
 
-      if (orderBy != null) {
-        query += ' ORDER BY ${orderBy.sql}';
-      }
+          final baseParameters =
+              params.wheres.values.map((w) => w.value).toList();
 
-      query += ';';
+          if (verbose) {
+            print('-' * 80);
 
-      if (verbose) {
-        print(
-            '--------------------------------------------------------------------------------');
+            print('QUERY: $baseQuery');
 
-        print('SQL => $query');
+            print('PARAMETERS: $baseParameters');
 
-        print('PARAMS => ${wheres.values.map((w) => w.value).toList()}');
+            print('-' * 80);
+          }
 
-        print(
-            '--------------------------------------------------------------------------------');
-      }
+          final resultBase = await tx.execute(
+            baseQuery,
+            parameters: baseParameters,
+          );
 
-      final result = await _conn.execute(
-        query,
-        parameters: wheres.values.map((w) => w.value).toList(),
-      );
+          final resultCount = await tx.execute(
+            countQuery,
+            parameters: baseParameters,
+          );
 
-      final entities = List<FollowerEntity>.from(
-        result.map(
-          (row) {
-            final [
-              String $id,
-              String $followerId,
-              String $followingId,
-              DateTime $createdAt,
-            ] = row as List;
+          final count = resultCount[0][0] as int;
 
-            return FollowerEntity(
-              id: $id,
-              followerId: $followerId,
-              followingId: $followingId,
-              createdAt: $createdAt,
+          if (resultBase.isEmpty) {
+            await tx.rollback();
+            return Pagination<FollowerEntity>(
+              items: [],
+              total: 0,
+              page: offset,
+              pageSize: limit,
+              hasNext: false,
+              hasPrevious: false,
             );
-          },
-        ),
+          }
+
+          final entitiesBase = List<FollowerEntity>.from(
+            resultBase.map(
+              (row) {
+                final [
+                  String id,
+                  String followerId,
+                  String followingId,
+                  DateTime createdAt,
+                ] = row as List;
+
+                return FollowerEntity(
+                  id: id,
+                  followerId: followerId,
+                  followingId: followingId,
+                  createdAt: createdAt,
+                );
+              },
+            ),
+          );
+
+          return Pagination<FollowerEntity>(
+            items: entitiesBase,
+            total: entitiesBase.length,
+            page: offset,
+            pageSize: limit,
+            hasNext: (offset + 1) * limit > count,
+            hasPrevious: (offset + 1) > 0,
+          );
+        },
       );
 
-      return Success(entities);
+      return Success(data);
     } on Exception catch (e) {
       return Error(e);
     }
@@ -2198,4 +3130,32 @@ class FollowersRepository {
       return Error(e);
     }
   }
+}
+
+class FindManyFollowerParams {
+  final Where? whereId;
+  final Where? whereFollowerId;
+  final Where? whereFollowingId;
+  final Where? whereCreatedAt;
+
+  final int? page;
+  final int? pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyFollowerParams({
+    this.whereId,
+    this.whereFollowerId,
+    this.whereFollowingId,
+    this.whereCreatedAt,
+    this.page,
+    this.pageSize,
+    this.orderBy,
+  });
+
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (whereFollowerId != null) 'follower_id': whereFollowerId!,
+        if (whereFollowingId != null) 'following_id': whereFollowingId!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+      };
 }
