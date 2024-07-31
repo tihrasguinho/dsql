@@ -1,4 +1,5 @@
-import 'package:dsql/dsql.dart';
+import 'dart:io';
+
 import 'package:example/generated/dsql.dart';
 
 void main() async {
@@ -7,23 +8,20 @@ void main() async {
     verbose: true,
   );
 
-  await dsql.users
-      .findMany(
-        FindManyUserParams(
-          whereName: Where.contains('a'),
-          includePosts: IncludeUserPosts(
-            pageSize: 1,
-            orderBy: OrderBy.desc('created_at'),
-          ),
-          orderBy: OrderBy.desc('created_at'),
-        ),
-      )
-      .then(
-        (result) => result.when(
-          (success) => print(success),
-          (error) => print(error),
-        ),
-      );
+  final result = await dsql.users.findMany(
+    FindManyUserParams(
+      includePosts: IncludeUserPosts(
+        pageSize: 5,
+      ),
+    ),
+  );
+
+  result.when(
+    (success) => print(success),
+    (error) => print(error),
+  );
+
+  exit(0);
 
 //   --------------------------------------------------------------------------------
 //   SQL => INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;

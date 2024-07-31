@@ -13,13 +13,13 @@ class UserEntity {
   final String? bio;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final List<PostEntity>? $posts;
+  final Page<PostEntity>? $posts;
   final int? $postsCount;
-  final List<LikeEntity>? $likes;
+  final Page<LikeEntity>? $likes;
   final int? $likesCount;
-  final List<FollowerEntity>? $followers;
+  final Page<FollowerEntity>? $followers;
   final int? $followersCount;
-  final List<FollowerEntity>? $following;
+  final Page<FollowerEntity>? $following;
   final int? $followingCount;
 
   const UserEntity({
@@ -52,13 +52,13 @@ class UserEntity {
     String? Function()? bio,
     DateTime? createdAt,
     DateTime? updatedAt,
-    List<PostEntity>? Function()? $posts,
+    Page<PostEntity>? Function()? $posts,
     int? Function()? $postsCount,
-    List<LikeEntity>? Function()? $likes,
+    Page<LikeEntity>? Function()? $likes,
     int? Function()? $likesCount,
-    List<FollowerEntity>? Function()? $followers,
+    Page<FollowerEntity>? Function()? $followers,
     int? Function()? $followersCount,
-    List<FollowerEntity>? Function()? $following,
+    Page<FollowerEntity>? Function()? $following,
     int? Function()? $followingCount,
   }) {
     return UserEntity(
@@ -95,13 +95,17 @@ class UserEntity {
       'bio': bio,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
-      'posts': $posts?.map((entity) => entity.toMap()).toList(),
+      'posts':
+          $posts?.toMap((items) => items.map((item) => item.toMap()).toList()),
       'posts_count': $postsCount,
-      'likes': $likes?.map((entity) => entity.toMap()).toList(),
+      'likes':
+          $likes?.toMap((items) => items.map((item) => item.toMap()).toList()),
       'likes_count': $likesCount,
-      'followers': $followers?.map((entity) => entity.toMap()).toList(),
+      'followers': $followers
+          ?.toMap((items) => items.map((item) => item.toMap()).toList()),
       'followers_count': $followersCount,
-      'following': $following?.map((entity) => entity.toMap()).toList(),
+      'following': $following
+          ?.toMap((items) => items.map((item) => item.toMap()).toList()),
       'following_count': $followingCount,
     };
   }
@@ -119,32 +123,24 @@ class UserEntity {
       bio: map['bio'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
-      $posts: List<PostEntity>.from(
-        (map['posts'] as List?)?.map(
-              (innerMap) => PostEntity.fromMap(innerMap),
-            ) ??
-            [],
+      $posts: Page.fromMap(
+        map['posts'] as Map<String, dynamic>,
+        (posts) => posts.map((v) => PostEntity.fromMap(v)).toList(),
       ),
       $postsCount: map['posts_count'],
-      $likes: List<LikeEntity>.from(
-        (map['likes'] as List?)?.map(
-              (innerMap) => LikeEntity.fromMap(innerMap),
-            ) ??
-            [],
+      $likes: Page.fromMap(
+        map['likes'] as Map<String, dynamic>,
+        (likes) => likes.map((v) => LikeEntity.fromMap(v)).toList(),
       ),
       $likesCount: map['likes_count'],
-      $followers: List<FollowerEntity>.from(
-        (map['followers'] as List?)?.map(
-              (innerMap) => FollowerEntity.fromMap(innerMap),
-            ) ??
-            [],
+      $followers: Page.fromMap(
+        map['followers'] as Map<String, dynamic>,
+        (followers) => followers.map((v) => FollowerEntity.fromMap(v)).toList(),
       ),
       $followersCount: map['followers_count'],
-      $following: List<FollowerEntity>.from(
-        (map['following'] as List?)?.map(
-              (innerMap) => FollowerEntity.fromMap(innerMap),
-            ) ??
-            [],
+      $following: Page.fromMap(
+        map['following'] as Map<String, dynamic>,
+        (following) => following.map((v) => FollowerEntity.fromMap(v)).toList(),
       ),
       $followingCount: map['following_count'],
     );
@@ -159,15 +155,6 @@ class UserEntity {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    bool listEquals(List? a, List? b) {
-      if (a == null && b == null) return true;
-      if (a?.length != b?.length) return false;
-      for (int i = 0; i < (a?.length ?? 0); i++) {
-        if (a?[i] != b?[i]) return false;
-      }
-      return true;
-    }
-
     return other is UserEntity &&
         other.id == id &&
         other.name == name &&
@@ -178,13 +165,13 @@ class UserEntity {
         other.bio == bio &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt &&
-        listEquals(other.$posts, $posts) &&
+        other.$posts == $posts &&
         other.$postsCount == $postsCount &&
-        listEquals(other.$likes, $likes) &&
+        other.$likes == $likes &&
         other.$likesCount == $likesCount &&
-        listEquals(other.$followers, $followers) &&
+        other.$followers == $followers &&
         other.$followersCount == $followersCount &&
-        listEquals(other.$following, $following) &&
+        other.$following == $following &&
         other.$followingCount == $followingCount;
   }
 
@@ -217,9 +204,9 @@ class PostEntity {
   final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final List<PostEntity>? $replies;
+  final Page<PostEntity>? $replies;
   final int? $repliesCount;
-  final List<LikeEntity>? $likes;
+  final Page<LikeEntity>? $likes;
   final int? $likesCount;
   final PostEntity? $post;
   final UserEntity? $user;
@@ -246,9 +233,9 @@ class PostEntity {
     String? userId,
     DateTime? createdAt,
     DateTime? updatedAt,
-    List<PostEntity>? Function()? $replies,
+    Page<PostEntity>? Function()? $replies,
     int? Function()? $repliesCount,
-    List<LikeEntity>? Function()? $likes,
+    Page<LikeEntity>? Function()? $likes,
     int? Function()? $likesCount,
     PostEntity? Function()? $post,
     UserEntity? Function()? $user,
@@ -278,9 +265,11 @@ class PostEntity {
       'user_id': userId,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
-      'replies': $replies?.map((entity) => entity.toMap()).toList(),
+      'replies': $replies
+          ?.toMap((items) => items.map((item) => item.toMap()).toList()),
       'replies_count': $repliesCount,
-      'likes': $likes?.map((entity) => entity.toMap()).toList(),
+      'likes':
+          $likes?.toMap((items) => items.map((item) => item.toMap()).toList()),
       'likes_count': $likesCount,
       'post': $post?.toMap(),
       'user': $user?.toMap(),
@@ -297,18 +286,14 @@ class PostEntity {
       userId: map['user_id'] as String,
       createdAt: map['created_at'] as DateTime,
       updatedAt: map['updated_at'] as DateTime,
-      $replies: List<PostEntity>.from(
-        (map['replies'] as List?)?.map(
-              (innerMap) => PostEntity.fromMap(innerMap),
-            ) ??
-            [],
+      $replies: Page.fromMap(
+        map['replies'] as Map<String, dynamic>,
+        (replies) => replies.map((v) => PostEntity.fromMap(v)).toList(),
       ),
       $repliesCount: map['replies_count'],
-      $likes: List<LikeEntity>.from(
-        (map['likes'] as List?)?.map(
-              (innerMap) => LikeEntity.fromMap(innerMap),
-            ) ??
-            [],
+      $likes: Page.fromMap(
+        map['likes'] as Map<String, dynamic>,
+        (likes) => likes.map((v) => LikeEntity.fromMap(v)).toList(),
       ),
       $likesCount: map['likes_count'],
       $post: map['post'] != null ? PostEntity.fromMap(map['post']) : null,
@@ -325,15 +310,6 @@ class PostEntity {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    bool listEquals(List? a, List? b) {
-      if (a == null && b == null) return true;
-      if (a?.length != b?.length) return false;
-      for (int i = 0; i < (a?.length ?? 0); i++) {
-        if (a?[i] != b?[i]) return false;
-      }
-      return true;
-    }
-
     return other is PostEntity &&
         other.id == id &&
         other.postId == postId &&
@@ -341,9 +317,9 @@ class PostEntity {
         other.userId == userId &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt &&
-        listEquals(other.$replies, $replies) &&
+        other.$replies == $replies &&
         other.$repliesCount == $repliesCount &&
-        listEquals(other.$likes, $likes) &&
+        other.$likes == $likes &&
         other.$likesCount == $likesCount &&
         other.$post == $post &&
         other.$user == $user;

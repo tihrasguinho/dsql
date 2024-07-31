@@ -505,7 +505,7 @@ String _entitiesBuilder(List<_Table> tables) {
     final containsHasOne = table.hasOne.isNotEmpty;
 
     final fieldsForHasMany =
-        containsHasMany ? table.hasMany.entries.map((entry) => 'final List<${entry.value.entity}>? \$${entry.key.nameNormalized};\nfinal int? \$${entry.key.nameNormalized}Count;').join('\n') : '';
+        containsHasMany ? table.hasMany.entries.map((entry) => 'final Page<${entry.value.entity}>? \$${entry.key.nameNormalized};\nfinal int? \$${entry.key.nameNormalized}Count;').join('\n') : '';
     final fieldsForHasOne = containsHasOne ? table.hasOne.entries.map((entry) => 'final ${entry.value.entity}? \$${_constraintNameNormalizer(entry.key.originColumn)};').join('\n') : '';
 
     final content = '''class ${table.entity} {
@@ -528,7 +528,7 @@ ${table.columns.map((c) {
       }
     }).join('\n')}
 ${table.hasMany.entries.map((entry) {
-      final field = 'List<${entry.value.entity}>? Function()? \$${entry.key.nameNormalized},';
+      final field = 'Page<${entry.value.entity}>? Function()? \$${entry.key.nameNormalized},';
       final count = 'int? Function()? \$${entry.key.nameNormalized}Count,';
       return '$field $count';
     }).join('\n')}
@@ -559,7 +559,7 @@ ${table.columns.map((c) {
 ${table.hasMany.entries.map((entry) {
       final key = entry.key.nameNormalized.toSnakeCase();
       final value = entry.key.nameNormalized;
-      return '\'$key\': \$$value?.map((entity) => entity.toMap()).toList(), \'${key}_count\': \$${value}Count,';
+      return '\'$key\': \$$value?.toMap((items) => items.map((item) => item.toMap()).toList()), \'${key}_count\': \$${value}Count,';
     }).join('\n')}
 ${containsHasOne ? table.hasOne.entries.map((entry) {
             return '\'${_constraintNameNormalizer(entry.key.originColumn).toSnakeCase()}\': \$${_constraintNameNormalizer(entry.key.originColumn)}?.toMap(),';
@@ -575,7 +575,7 @@ ${table.columns.map((c) => '${_fieldName(c)}: map[\'${_fieldName(c).toSnakeCase(
 ${table.hasMany.entries.map((entry) {
       final key = entry.key.nameNormalized.toSnakeCase();
       final value = entry.key.nameNormalized;
-      return '\$$value: List<${entry.value.entity}>.from((map[\'$key\'] as List?)?.map((innerMap) => ${entry.value.entity}.fromMap(innerMap),) ?? [],), \$${key}Count: map[\'${key}_count\'],';
+      return '\$$value: Page.fromMap(map[\'$key\'] as Map<String, dynamic>, ($value) => $value.map((v) => ${entry.value.entity}.fromMap(v)).toList(),), \$${key}Count: map[\'${key}_count\'],';
     }).join('\n')}
 ${containsHasOne ? table.hasOne.entries.map((entry) {
             return '\$${_constraintNameNormalizer(entry.key.originColumn)}: map[\'${_constraintNameNormalizer(entry.key.originColumn).toSnakeCase()}\'] != null ? ${entry.value.entity}.fromMap(map[\'${_constraintNameNormalizer(entry.key.originColumn).toSnakeCase()}\']) : null,';
@@ -598,19 +598,10 @@ ${containsHasOne ? table.hasOne.entries.map((entry) {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    ${table.hasMany.isEmpty ? '' : '''bool listEquals(List? a, List? b) {
-      if (a == null && b == null) return true;
-      if (a?.length != b?.length) return false;
-      for (int i = 0; i < (a?.length ?? 0); i++) {
-        if (a?[i] != b?[i]) return false;
-      }
-      return true;
-    }'''}
-
     return other is ${table.entity} && ${table.columns.map((c) {
       return 'other.${_fieldName(c)} == ${_fieldName(c)}';
     }).join(' && ')}${containsHasMany ? ' && ' : ''}${table.hasMany.entries.map((entry) {
-      return 'listEquals(other.\$${entry.key.nameNormalized}, \$${entry.key.nameNormalized}) && other.\$${entry.key.nameNormalized}Count == \$${entry.key.nameNormalized}Count';
+      return 'other.\$${entry.key.nameNormalized} == \$${entry.key.nameNormalized} && other.\$${entry.key.nameNormalized}Count == \$${entry.key.nameNormalized}Count';
     }).join(' && ')}${containsHasOne ? ' && ' : ''}${table.hasOne.entries.map((entry) {
       return 'other.\$${_constraintNameNormalizer(entry.key.originColumn)} == \$${_constraintNameNormalizer(entry.key.originColumn)}';
     }).join(' && ')};
@@ -789,9 +780,9 @@ $hasManyClasses''';
 }
 
 String _findManyBuilder(_Table table) {
-  return '''AsyncResult<Pagination<${table.entity}>, Exception> findMany([FindMany${table.rawEntity}Params params = const FindMany${table.rawEntity}Params()]) async {
+  return '''AsyncResult<Page<${table.entity}>, Exception> findMany([FindMany${table.rawEntity}Params params = const FindMany${table.rawEntity}Params()]) async {
     try {
-      final data = await _conn.runTx<Pagination<${table.entity}>>((tx) async {
+      final data = await _conn.runTx<Page<${table.entity}>>((tx) async {
         final offset = switch (params.page != null) {
           false => 0,
           true => params.page! - 1 < 0 ? 0 : params.page! - 1,
@@ -834,13 +825,10 @@ String _findManyBuilder(_Table table) {
 
         if (resultBase.isEmpty) {
           await tx.rollback();
-          return Pagination<${table.entity}>(
+          return Page<${table.entity}>(
             items: [],
-            total: 0,
             page: offset,
             pageSize: limit,
-            hasNext: false,
-            hasPrevious: false,
           );
         }
 
@@ -875,24 +863,21 @@ String _findManyBuilder(_Table table) {
 
             final joinedOrderBy = switch (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.orderBy != null) {
               false => null,
-              true => params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}!.orderBy,
+              true => params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.orderBy,
             };
 
             final joinedQuery = 'SELECT * FROM ${entry.value.name} WHERE \${joinedWheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}\${joinedOrderBy != null ? ' ORDER BY \${joinedOrderBy.sql}' : ''} OFFSET \$joinedOffset LIMIT \$joinedLimit';
 
             final joinedParameters = joinedWheres.values.map((w) => w.value).toList();
 
-            final joinedCountQuery = switch (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.withCount ?? false) {
-              false => null,
-              true => 'SELECT COUNT(*) FROM ${entry.value.name} WHERE \${joinedWheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}',
-            };
+            final joinedCountQuery = 'SELECT COUNT(*) FROM ${entry.value.name} WHERE \${joinedWheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}';
 
             if (verbose) {
               print('-' * 80);
 
               print('QUERY: \$joinedQuery');
 
-              if (joinedCountQuery != null) {
+              if (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.withCount ?? false) {
                 print('COUNT QUERY: \$joinedCountQuery');
               }
 
@@ -901,23 +886,17 @@ String _findManyBuilder(_Table table) {
               print('-' * 80);
             }
 
-            int? ${entry.key.nameNormalized}Count;
-
             final joinedResult = await tx.execute(
               joinedQuery,
               parameters: joinedParameters,
             );
 
-            if (joinedCountQuery != null) {
-              final joinedCountResult = await tx.execute(
-                joinedCountQuery,
-                parameters: joinedParameters,
-              );
+            final joinedCountResult = await tx.execute(
+              joinedCountQuery,
+              parameters: joinedParameters,
+            );
 
-              if (joinedCountResult.isNotEmpty) {
-                ${entry.key.nameNormalized}Count = joinedCountResult.first.first as int;
-              }
-            }
+            final ${entry.key.nameNormalized}Count = joinedCountResult[0][0] as int;
 
             final joinedEntities = List<${entry.value.entity}>.from(
               joinedResult.map((row) {
@@ -933,17 +912,24 @@ String _findManyBuilder(_Table table) {
             );
 
             entitiesBase[i] = entity.copyWith(
-              \$${entry.key.nameNormalized}: () => joinedEntities,
+              \$${entry.key.nameNormalized}: () {
+                return Page(
+                  items: joinedEntities,
+                  page: joinedOffset + 1,
+                  pageSize: joinedLimit,
+                  hasNext: (joinedOffset + 1) * joinedLimit > ${entry.key.nameNormalized}Count,
+                  hasPrevious: (joinedOffset + 1) > 0,
+                );
+              },
               \$${entry.key.nameNormalized}Count: () => ${entry.key.nameNormalized}Count,
             );
           }
       }''').join('\n\n')}
 
-        return Pagination<${table.entity}>(
+        return Page<${table.entity}>(
           items: entitiesBase,
-          total: entitiesBase.length,
-          page: offset,
-          pageSize: limit ,
+          page: offset + 1,
+          pageSize: limit,
           hasNext: (offset + 1) * limit > count,
           hasPrevious: (offset + 1) > 0,
         );

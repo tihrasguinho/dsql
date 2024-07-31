@@ -208,10 +208,10 @@ class UsersRepository {
     }
   }
 
-  AsyncResult<Pagination<UserEntity>, Exception> findMany(
+  AsyncResult<Page<UserEntity>, Exception> findMany(
       [FindManyUserParams params = const FindManyUserParams()]) async {
     try {
-      final data = await _conn.runTx<Pagination<UserEntity>>(
+      final data = await _conn.runTx<Page<UserEntity>>(
         (tx) async {
           final offset = switch (params.page != null) {
             false => 0,
@@ -258,13 +258,10 @@ class UsersRepository {
 
           if (resultBase.isEmpty) {
             await tx.rollback();
-            return Pagination<UserEntity>(
+            return Page<UserEntity>(
               items: [],
-              total: 0,
               page: offset,
               pageSize: limit,
-              hasNext: false,
-              hasPrevious: false,
             );
           }
 
@@ -320,7 +317,7 @@ class UsersRepository {
               final joinedOrderBy =
                   switch (params.includePosts?.orderBy != null) {
                 false => null,
-                true => params.includePosts!.orderBy,
+                true => params.includePosts?.orderBy,
               };
 
               final joinedQuery =
@@ -330,18 +327,14 @@ class UsersRepository {
                   joinedWheres.values.map((w) => w.value).toList();
 
               final joinedCountQuery =
-                  switch (params.includePosts?.withCount ?? false) {
-                false => null,
-                true =>
-                  'SELECT COUNT(*) FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
-              };
+                  'SELECT COUNT(*) FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
 
               if (verbose) {
                 print('-' * 80);
 
                 print('QUERY: $joinedQuery');
 
-                if (joinedCountQuery != null) {
+                if (params.includePosts?.withCount ?? false) {
                   print('COUNT QUERY: $joinedCountQuery');
                 }
 
@@ -350,23 +343,17 @@ class UsersRepository {
                 print('-' * 80);
               }
 
-              int? postsCount;
-
               final joinedResult = await tx.execute(
                 joinedQuery,
                 parameters: joinedParameters,
               );
 
-              if (joinedCountQuery != null) {
-                final joinedCountResult = await tx.execute(
-                  joinedCountQuery,
-                  parameters: joinedParameters,
-                );
+              final joinedCountResult = await tx.execute(
+                joinedCountQuery,
+                parameters: joinedParameters,
+              );
 
-                if (joinedCountResult.isNotEmpty) {
-                  postsCount = joinedCountResult.first.first as int;
-                }
-              }
+              final postsCount = joinedCountResult[0][0] as int;
 
               final joinedEntities = List<PostEntity>.from(
                 joinedResult.map(
@@ -393,7 +380,15 @@ class UsersRepository {
               );
 
               entitiesBase[i] = entity.copyWith(
-                $posts: () => joinedEntities,
+                $posts: () {
+                  return Page(
+                    items: joinedEntities,
+                    page: joinedOffset + 1,
+                    pageSize: joinedLimit,
+                    hasNext: (joinedOffset + 1) * joinedLimit > postsCount,
+                    hasPrevious: (joinedOffset + 1) > 0,
+                  );
+                },
                 $postsCount: () => postsCount,
               );
             }
@@ -421,7 +416,7 @@ class UsersRepository {
               final joinedOrderBy =
                   switch (params.includeLikes?.orderBy != null) {
                 false => null,
-                true => params.includeLikes!.orderBy,
+                true => params.includeLikes?.orderBy,
               };
 
               final joinedQuery =
@@ -431,18 +426,14 @@ class UsersRepository {
                   joinedWheres.values.map((w) => w.value).toList();
 
               final joinedCountQuery =
-                  switch (params.includeLikes?.withCount ?? false) {
-                false => null,
-                true =>
-                  'SELECT COUNT(*) FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
-              };
+                  'SELECT COUNT(*) FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
 
               if (verbose) {
                 print('-' * 80);
 
                 print('QUERY: $joinedQuery');
 
-                if (joinedCountQuery != null) {
+                if (params.includeLikes?.withCount ?? false) {
                   print('COUNT QUERY: $joinedCountQuery');
                 }
 
@@ -451,23 +442,17 @@ class UsersRepository {
                 print('-' * 80);
               }
 
-              int? likesCount;
-
               final joinedResult = await tx.execute(
                 joinedQuery,
                 parameters: joinedParameters,
               );
 
-              if (joinedCountQuery != null) {
-                final joinedCountResult = await tx.execute(
-                  joinedCountQuery,
-                  parameters: joinedParameters,
-                );
+              final joinedCountResult = await tx.execute(
+                joinedCountQuery,
+                parameters: joinedParameters,
+              );
 
-                if (joinedCountResult.isNotEmpty) {
-                  likesCount = joinedCountResult.first.first as int;
-                }
-              }
+              final likesCount = joinedCountResult[0][0] as int;
 
               final joinedEntities = List<LikeEntity>.from(
                 joinedResult.map(
@@ -490,7 +475,15 @@ class UsersRepository {
               );
 
               entitiesBase[i] = entity.copyWith(
-                $likes: () => joinedEntities,
+                $likes: () {
+                  return Page(
+                    items: joinedEntities,
+                    page: joinedOffset + 1,
+                    pageSize: joinedLimit,
+                    hasNext: (joinedOffset + 1) * joinedLimit > likesCount,
+                    hasPrevious: (joinedOffset + 1) > 0,
+                  );
+                },
                 $likesCount: () => likesCount,
               );
             }
@@ -519,7 +512,7 @@ class UsersRepository {
               final joinedOrderBy =
                   switch (params.includeFollowers?.orderBy != null) {
                 false => null,
-                true => params.includeFollowers!.orderBy,
+                true => params.includeFollowers?.orderBy,
               };
 
               final joinedQuery =
@@ -529,18 +522,14 @@ class UsersRepository {
                   joinedWheres.values.map((w) => w.value).toList();
 
               final joinedCountQuery =
-                  switch (params.includeFollowers?.withCount ?? false) {
-                false => null,
-                true =>
-                  'SELECT COUNT(*) FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
-              };
+                  'SELECT COUNT(*) FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
 
               if (verbose) {
                 print('-' * 80);
 
                 print('QUERY: $joinedQuery');
 
-                if (joinedCountQuery != null) {
+                if (params.includeFollowers?.withCount ?? false) {
                   print('COUNT QUERY: $joinedCountQuery');
                 }
 
@@ -549,23 +538,17 @@ class UsersRepository {
                 print('-' * 80);
               }
 
-              int? followersCount;
-
               final joinedResult = await tx.execute(
                 joinedQuery,
                 parameters: joinedParameters,
               );
 
-              if (joinedCountQuery != null) {
-                final joinedCountResult = await tx.execute(
-                  joinedCountQuery,
-                  parameters: joinedParameters,
-                );
+              final joinedCountResult = await tx.execute(
+                joinedCountQuery,
+                parameters: joinedParameters,
+              );
 
-                if (joinedCountResult.isNotEmpty) {
-                  followersCount = joinedCountResult.first.first as int;
-                }
-              }
+              final followersCount = joinedCountResult[0][0] as int;
 
               final joinedEntities = List<FollowerEntity>.from(
                 joinedResult.map(
@@ -588,7 +571,15 @@ class UsersRepository {
               );
 
               entitiesBase[i] = entity.copyWith(
-                $followers: () => joinedEntities,
+                $followers: () {
+                  return Page(
+                    items: joinedEntities,
+                    page: joinedOffset + 1,
+                    pageSize: joinedLimit,
+                    hasNext: (joinedOffset + 1) * joinedLimit > followersCount,
+                    hasPrevious: (joinedOffset + 1) > 0,
+                  );
+                },
                 $followersCount: () => followersCount,
               );
             }
@@ -617,7 +608,7 @@ class UsersRepository {
               final joinedOrderBy =
                   switch (params.includeFollowing?.orderBy != null) {
                 false => null,
-                true => params.includeFollowing!.orderBy,
+                true => params.includeFollowing?.orderBy,
               };
 
               final joinedQuery =
@@ -627,18 +618,14 @@ class UsersRepository {
                   joinedWheres.values.map((w) => w.value).toList();
 
               final joinedCountQuery =
-                  switch (params.includeFollowing?.withCount ?? false) {
-                false => null,
-                true =>
-                  'SELECT COUNT(*) FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
-              };
+                  'SELECT COUNT(*) FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
 
               if (verbose) {
                 print('-' * 80);
 
                 print('QUERY: $joinedQuery');
 
-                if (joinedCountQuery != null) {
+                if (params.includeFollowing?.withCount ?? false) {
                   print('COUNT QUERY: $joinedCountQuery');
                 }
 
@@ -647,23 +634,17 @@ class UsersRepository {
                 print('-' * 80);
               }
 
-              int? followingCount;
-
               final joinedResult = await tx.execute(
                 joinedQuery,
                 parameters: joinedParameters,
               );
 
-              if (joinedCountQuery != null) {
-                final joinedCountResult = await tx.execute(
-                  joinedCountQuery,
-                  parameters: joinedParameters,
-                );
+              final joinedCountResult = await tx.execute(
+                joinedCountQuery,
+                parameters: joinedParameters,
+              );
 
-                if (joinedCountResult.isNotEmpty) {
-                  followingCount = joinedCountResult.first.first as int;
-                }
-              }
+              final followingCount = joinedCountResult[0][0] as int;
 
               final joinedEntities = List<FollowerEntity>.from(
                 joinedResult.map(
@@ -686,16 +667,23 @@ class UsersRepository {
               );
 
               entitiesBase[i] = entity.copyWith(
-                $following: () => joinedEntities,
+                $following: () {
+                  return Page(
+                    items: joinedEntities,
+                    page: joinedOffset + 1,
+                    pageSize: joinedLimit,
+                    hasNext: (joinedOffset + 1) * joinedLimit > followingCount,
+                    hasPrevious: (joinedOffset + 1) > 0,
+                  );
+                },
                 $followingCount: () => followingCount,
               );
             }
           }
 
-          return Pagination<UserEntity>(
+          return Page<UserEntity>(
             items: entitiesBase,
-            total: entitiesBase.length,
-            page: offset,
+            page: offset + 1,
             pageSize: limit,
             hasNext: (offset + 1) * limit > count,
             hasPrevious: (offset + 1) > 0,
@@ -1457,10 +1445,10 @@ class PostsRepository {
     }
   }
 
-  AsyncResult<Pagination<PostEntity>, Exception> findMany(
+  AsyncResult<Page<PostEntity>, Exception> findMany(
       [FindManyPostParams params = const FindManyPostParams()]) async {
     try {
-      final data = await _conn.runTx<Pagination<PostEntity>>(
+      final data = await _conn.runTx<Page<PostEntity>>(
         (tx) async {
           final offset = switch (params.page != null) {
             false => 0,
@@ -1507,13 +1495,10 @@ class PostsRepository {
 
           if (resultBase.isEmpty) {
             await tx.rollback();
-            return Pagination<PostEntity>(
+            return Page<PostEntity>(
               items: [],
-              total: 0,
               page: offset,
               pageSize: limit,
-              hasNext: false,
-              hasPrevious: false,
             );
           }
 
@@ -1564,7 +1549,7 @@ class PostsRepository {
               final joinedOrderBy =
                   switch (params.includeReplies?.orderBy != null) {
                 false => null,
-                true => params.includeReplies!.orderBy,
+                true => params.includeReplies?.orderBy,
               };
 
               final joinedQuery =
@@ -1574,18 +1559,14 @@ class PostsRepository {
                   joinedWheres.values.map((w) => w.value).toList();
 
               final joinedCountQuery =
-                  switch (params.includeReplies?.withCount ?? false) {
-                false => null,
-                true =>
-                  'SELECT COUNT(*) FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
-              };
+                  'SELECT COUNT(*) FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
 
               if (verbose) {
                 print('-' * 80);
 
                 print('QUERY: $joinedQuery');
 
-                if (joinedCountQuery != null) {
+                if (params.includeReplies?.withCount ?? false) {
                   print('COUNT QUERY: $joinedCountQuery');
                 }
 
@@ -1594,23 +1575,17 @@ class PostsRepository {
                 print('-' * 80);
               }
 
-              int? repliesCount;
-
               final joinedResult = await tx.execute(
                 joinedQuery,
                 parameters: joinedParameters,
               );
 
-              if (joinedCountQuery != null) {
-                final joinedCountResult = await tx.execute(
-                  joinedCountQuery,
-                  parameters: joinedParameters,
-                );
+              final joinedCountResult = await tx.execute(
+                joinedCountQuery,
+                parameters: joinedParameters,
+              );
 
-                if (joinedCountResult.isNotEmpty) {
-                  repliesCount = joinedCountResult.first.first as int;
-                }
-              }
+              final repliesCount = joinedCountResult[0][0] as int;
 
               final joinedEntities = List<PostEntity>.from(
                 joinedResult.map(
@@ -1637,7 +1612,15 @@ class PostsRepository {
               );
 
               entitiesBase[i] = entity.copyWith(
-                $replies: () => joinedEntities,
+                $replies: () {
+                  return Page(
+                    items: joinedEntities,
+                    page: joinedOffset + 1,
+                    pageSize: joinedLimit,
+                    hasNext: (joinedOffset + 1) * joinedLimit > repliesCount,
+                    hasPrevious: (joinedOffset + 1) > 0,
+                  );
+                },
                 $repliesCount: () => repliesCount,
               );
             }
@@ -1665,7 +1648,7 @@ class PostsRepository {
               final joinedOrderBy =
                   switch (params.includeLikes?.orderBy != null) {
                 false => null,
-                true => params.includeLikes!.orderBy,
+                true => params.includeLikes?.orderBy,
               };
 
               final joinedQuery =
@@ -1675,18 +1658,14 @@ class PostsRepository {
                   joinedWheres.values.map((w) => w.value).toList();
 
               final joinedCountQuery =
-                  switch (params.includeLikes?.withCount ?? false) {
-                false => null,
-                true =>
-                  'SELECT COUNT(*) FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}',
-              };
+                  'SELECT COUNT(*) FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}';
 
               if (verbose) {
                 print('-' * 80);
 
                 print('QUERY: $joinedQuery');
 
-                if (joinedCountQuery != null) {
+                if (params.includeLikes?.withCount ?? false) {
                   print('COUNT QUERY: $joinedCountQuery');
                 }
 
@@ -1695,23 +1674,17 @@ class PostsRepository {
                 print('-' * 80);
               }
 
-              int? likesCount;
-
               final joinedResult = await tx.execute(
                 joinedQuery,
                 parameters: joinedParameters,
               );
 
-              if (joinedCountQuery != null) {
-                final joinedCountResult = await tx.execute(
-                  joinedCountQuery,
-                  parameters: joinedParameters,
-                );
+              final joinedCountResult = await tx.execute(
+                joinedCountQuery,
+                parameters: joinedParameters,
+              );
 
-                if (joinedCountResult.isNotEmpty) {
-                  likesCount = joinedCountResult.first.first as int;
-                }
-              }
+              final likesCount = joinedCountResult[0][0] as int;
 
               final joinedEntities = List<LikeEntity>.from(
                 joinedResult.map(
@@ -1734,16 +1707,23 @@ class PostsRepository {
               );
 
               entitiesBase[i] = entity.copyWith(
-                $likes: () => joinedEntities,
+                $likes: () {
+                  return Page(
+                    items: joinedEntities,
+                    page: joinedOffset + 1,
+                    pageSize: joinedLimit,
+                    hasNext: (joinedOffset + 1) * joinedLimit > likesCount,
+                    hasPrevious: (joinedOffset + 1) > 0,
+                  );
+                },
                 $likesCount: () => likesCount,
               );
             }
           }
 
-          return Pagination<PostEntity>(
+          return Page<PostEntity>(
             items: entitiesBase,
-            total: entitiesBase.length,
-            page: offset,
+            page: offset + 1,
             pageSize: limit,
             hasNext: (offset + 1) * limit > count,
             hasPrevious: (offset + 1) > 0,
@@ -2268,10 +2248,10 @@ class LikesRepository {
     }
   }
 
-  AsyncResult<Pagination<LikeEntity>, Exception> findMany(
+  AsyncResult<Page<LikeEntity>, Exception> findMany(
       [FindManyLikeParams params = const FindManyLikeParams()]) async {
     try {
-      final data = await _conn.runTx<Pagination<LikeEntity>>(
+      final data = await _conn.runTx<Page<LikeEntity>>(
         (tx) async {
           final offset = switch (params.page != null) {
             false => 0,
@@ -2318,13 +2298,10 @@ class LikesRepository {
 
           if (resultBase.isEmpty) {
             await tx.rollback();
-            return Pagination<LikeEntity>(
+            return Page<LikeEntity>(
               items: [],
-              total: 0,
               page: offset,
               pageSize: limit,
-              hasNext: false,
-              hasPrevious: false,
             );
           }
 
@@ -2348,10 +2325,9 @@ class LikesRepository {
             ),
           );
 
-          return Pagination<LikeEntity>(
+          return Page<LikeEntity>(
             items: entitiesBase,
-            total: entitiesBase.length,
-            page: offset,
+            page: offset + 1,
             pageSize: limit,
             hasNext: (offset + 1) * limit > count,
             hasPrevious: (offset + 1) > 0,
@@ -2777,10 +2753,10 @@ class FollowersRepository {
     }
   }
 
-  AsyncResult<Pagination<FollowerEntity>, Exception> findMany(
+  AsyncResult<Page<FollowerEntity>, Exception> findMany(
       [FindManyFollowerParams params = const FindManyFollowerParams()]) async {
     try {
-      final data = await _conn.runTx<Pagination<FollowerEntity>>(
+      final data = await _conn.runTx<Page<FollowerEntity>>(
         (tx) async {
           final offset = switch (params.page != null) {
             false => 0,
@@ -2827,13 +2803,10 @@ class FollowersRepository {
 
           if (resultBase.isEmpty) {
             await tx.rollback();
-            return Pagination<FollowerEntity>(
+            return Page<FollowerEntity>(
               items: [],
-              total: 0,
               page: offset,
               pageSize: limit,
-              hasNext: false,
-              hasPrevious: false,
             );
           }
 
@@ -2857,10 +2830,9 @@ class FollowersRepository {
             ),
           );
 
-          return Pagination<FollowerEntity>(
+          return Page<FollowerEntity>(
             items: entitiesBase,
-            total: entitiesBase.length,
-            page: offset,
+            page: offset + 1,
             pageSize: limit,
             hasNext: (offset + 1) * limit > count,
             hasPrevious: (offset + 1) > 0,
