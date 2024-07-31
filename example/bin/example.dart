@@ -10,8 +10,12 @@ void main() async {
   await dsql.users
       .findMany(
         FindManyUserParams(
-          whereId: Where.eq('faf2fa73-7f63-4012-b02c-4841dc422b3b'),
-          includePosts: IncludeUserPosts(pageSize: 1, page: 2),
+          whereName: Where.contains('a'),
+          includePosts: IncludeUserPosts(
+            pageSize: 1,
+            orderBy: OrderBy.desc('created_at'),
+          ),
+          orderBy: OrderBy.desc('created_at'),
         ),
       )
       .then(

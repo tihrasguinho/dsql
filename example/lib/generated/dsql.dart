@@ -226,10 +226,10 @@ class UsersRepository {
           };
 
           final baseQuery =
-              'SELECT * FROM tb_users WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
+              'SELECT * FROM tb_users${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''}${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''} OFFSET $offset LIMIT $limit;';
 
           final countQuery =
-              'SELECT COUNT(*) FROM tb_users WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
+              'SELECT COUNT(*) FROM tb_users${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''};';
 
           final baseParameters =
               params.wheres.values.map((w) => w.value).toList();
@@ -324,7 +324,7 @@ class UsersRepository {
               };
 
               final joinedQuery =
-                  'SELECT * FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+                  'SELECT * FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}${joinedOrderBy != null ? ' ORDER BY ${joinedOrderBy.sql}' : ''} OFFSET $joinedOffset LIMIT $joinedLimit';
 
               final joinedParameters =
                   joinedWheres.values.map((w) => w.value).toList();
@@ -425,7 +425,7 @@ class UsersRepository {
               };
 
               final joinedQuery =
-                  'SELECT * FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+                  'SELECT * FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}${joinedOrderBy != null ? ' ORDER BY ${joinedOrderBy.sql}' : ''} OFFSET $joinedOffset LIMIT $joinedLimit';
 
               final joinedParameters =
                   joinedWheres.values.map((w) => w.value).toList();
@@ -523,7 +523,7 @@ class UsersRepository {
               };
 
               final joinedQuery =
-                  'SELECT * FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+                  'SELECT * FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}${joinedOrderBy != null ? ' ORDER BY ${joinedOrderBy.sql}' : ''} OFFSET $joinedOffset LIMIT $joinedLimit';
 
               final joinedParameters =
                   joinedWheres.values.map((w) => w.value).toList();
@@ -621,7 +621,7 @@ class UsersRepository {
               };
 
               final joinedQuery =
-                  'SELECT * FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+                  'SELECT * FROM tb_followers WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}${joinedOrderBy != null ? ' ORDER BY ${joinedOrderBy.sql}' : ''} OFFSET $joinedOffset LIMIT $joinedLimit';
 
               final joinedParameters =
                   joinedWheres.values.map((w) => w.value).toList();
@@ -1475,10 +1475,10 @@ class PostsRepository {
           };
 
           final baseQuery =
-              'SELECT * FROM tb_posts WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
+              'SELECT * FROM tb_posts${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''}${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''} OFFSET $offset LIMIT $limit;';
 
           final countQuery =
-              'SELECT COUNT(*) FROM tb_posts WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
+              'SELECT COUNT(*) FROM tb_posts${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''};';
 
           final baseParameters =
               params.wheres.values.map((w) => w.value).toList();
@@ -1568,7 +1568,7 @@ class PostsRepository {
               };
 
               final joinedQuery =
-                  'SELECT * FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+                  'SELECT * FROM tb_posts WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}${joinedOrderBy != null ? ' ORDER BY ${joinedOrderBy.sql}' : ''} OFFSET $joinedOffset LIMIT $joinedLimit';
 
               final joinedParameters =
                   joinedWheres.values.map((w) => w.value).toList();
@@ -1669,7 +1669,7 @@ class PostsRepository {
               };
 
               final joinedQuery =
-                  'SELECT * FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $joinedOffset LIMIT $joinedLimit${joinedOrderBy != null ? joinedOrderBy.sql : ''}';
+                  'SELECT * FROM tb_likes WHERE ${joinedWheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}${joinedOrderBy != null ? ' ORDER BY ${joinedOrderBy.sql}' : ''} OFFSET $joinedOffset LIMIT $joinedLimit';
 
               final joinedParameters =
                   joinedWheres.values.map((w) => w.value).toList();
@@ -2286,10 +2286,10 @@ class LikesRepository {
           };
 
           final baseQuery =
-              'SELECT * FROM tb_likes WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
+              'SELECT * FROM tb_likes${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''}${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''} OFFSET $offset LIMIT $limit;';
 
           final countQuery =
-              'SELECT COUNT(*) FROM tb_likes WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
+              'SELECT COUNT(*) FROM tb_likes${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''};';
 
           final baseParameters =
               params.wheres.values.map((w) => w.value).toList();
@@ -2795,10 +2795,10 @@ class FollowersRepository {
           };
 
           final baseQuery =
-              'SELECT * FROM tb_followers WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')} OFFSET $offset LIMIT $limit${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''};';
+              'SELECT * FROM tb_followers${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''}${orderBy != null ? ' ORDER BY ${orderBy.sql}' : ''} OFFSET $offset LIMIT $limit;';
 
           final countQuery =
-              'SELECT COUNT(*) FROM tb_followers WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')};';
+              'SELECT COUNT(*) FROM tb_followers${params.wheres.isNotEmpty ? ' WHERE ${params.wheres.entries.indexedMap((index, entry) => '${entry.key} ${entry.value.op} \$${index + 1}').join(' AND ')}' : ''};';
 
           final baseParameters =
               params.wheres.values.map((w) => w.value).toList();
