@@ -1,31 +1,38 @@
 import 'dart:io';
 
-import 'package:example/generated/dsql.dart';
+import 'package:dsql/dsql.dart';
+import 'package:example/generated/experimental/repositories.dart';
 
 void main() async {
-  final dsql = await DSQL.open(
-    'postgres://postgres:postgres@localhost:5432/dev',
-    verbose: true,
-  );
-
-  final result = await dsql.users.findMany(
-    FindManyUserParams(
-      includePosts: IncludeUserPosts(
-        pageSize: 5,
-      ),
+  final conn = await Connection.open(
+    Endpoint(
+      host: 'localhost',
+      database: 'dev',
+      username: 'postgres',
+      password: 'postgres',
+    ),
+    settings: ConnectionSettings(
+      sslMode: SslMode.disable,
     ),
   );
 
-  result.when(
-    (success) => print(success),
-    (error) => print(error),
-  );
+  final users = UsersRepository(conn, verbose: true);
+
+  await users
+      .findOne(
+        FindOneUserParams(
+          name: Where.startsWith('x'),
+          createdAt: Where.lte(DateTime.now()),
+        ),
+      )
+      .then(
+        (r) => r.when(
+          (_) {},
+          (e) => print(e.message),
+        ),
+      );
+
+  await conn.close();
 
   exit(0);
-
-//   --------------------------------------------------------------------------------
-//   SQL => INSERT INTO tb_users (name, username, email, password) VALUES ($1, $2, $3, $4) RETURNING *;
-//   PARAMS => [Tiago Alves, tihrasguinho, tiago@gmail.com, 123456]
-//   --------------------------------------------------------------------------------
-//   UserEntity(id: 7b2549c8-3858-4d64-96fb-f9f38b20042b, name: Tiago Alves, username: tihrasguinho, email: tiago@gmail.com, password: 123456, image: null, bio: null, website: null, createdAt: 2024-07-26 12:48:27.154991Z, updatedAt: 2024-07-26 12:48:27.154991Z)
 }
