@@ -17,5 +17,5 @@ class OrderBy {
 
   const OrderBy.desc(String column) : this._(column, OrderByOption.desc);
 
-  String get sql => '\$column \${option.direction}';
+  String get sql => '$column ${option.direction}';
 }

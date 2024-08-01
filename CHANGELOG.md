@@ -1,3 +1,9 @@
+## 1.0.6
+
+- Added DSQL class with Connection and Pool support
+- Added Repository class
+- Added new helpers
+
 ## 1.0.5
 
 - Added a new way to map fields from relationships

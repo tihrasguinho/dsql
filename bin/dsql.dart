@@ -2,21 +2,41 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:dsql/src/internal/constraint.dart';
+import 'package:dsql/src/internal/dsql.dart' as d;
+import 'package:dsql/src/internal/entities.dart' as e;
+import 'package:dsql/src/internal/table.dart';
 import 'package:path/path.dart' as p;
 import 'package:postgres/postgres.dart' hide Type;
 import 'package:strings/strings.dart';
 
-final _regFk1 = RegExp(r'^CONSTRAINT\s(\w+)\sFOREIGN\sKEY\s\((\w+)\)\sREFERENCES\s(\w+)\s\((\w+)\)');
+final _regFk1 = RegExp(
+    r'^CONSTRAINT\s(\w+)\sFOREIGN\sKEY\s\((\w+)\)\sREFERENCES\s(\w+)\s\((\w+)\)');
 final _regFk2 = RegExp(r'REFERENCES\s(\w+)\s?\((\w+)\)');
-final _regTb = RegExp(r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
+final _regTb = RegExp(
+    r"--\sentity:\s([\w]+)\sCREATE TABLE(?: IF NOT EXISTS)?\s([\w]+)\s\(([\s\w\d\(\)\,\']+)\s\);");
 
 void main(List<String> args) async {
   final parser = ArgParser()
-    ..addOption('output', abbr: 'o', help: 'Set the output directory, where the dart files will be, if not set, default: lib/generated')
-    ..addOption('input', abbr: 'i', help: 'Set the input directory, where the sql files are, if not set, default: migrations')
-    ..addFlag('migrate', abbr: 'm', help: 'Migrate the database based on the sql files and generate the dart files', negatable: false)
-    ..addFlag('generate', abbr: 'g', help: 'Generate the dart files from the sql files', negatable: false)
-    ..addFlag('help', abbr: 'h', help: 'Show the help information.', negatable: false);
+    ..addOption('output',
+        abbr: 'o',
+        help:
+            'Set the output directory, where the dart files will be, if not set, default: lib/generated')
+    ..addOption('input',
+        abbr: 'i',
+        help:
+            'Set the input directory, where the sql files are, if not set, default: migrations')
+    ..addFlag('migrate',
+        abbr: 'm',
+        help:
+            'Migrate the database based on the sql files and generate the dart files',
+        negatable: false)
+    ..addFlag('generate',
+        abbr: 'g',
+        help: 'Generate the dart files from the sql files',
+        negatable: false)
+    ..addFlag('help',
+        abbr: 'h', help: 'Show the help information.', negatable: false);
 
   final results = parser.parse(args);
 
@@ -27,7 +47,8 @@ void main(List<String> args) async {
     stdout.writeln();
     stdout.writeln('Example:');
     stdout.writeln('  dart run dsql --migrate');
-    stdout.writeln('  dart run dsql --generate --input sql/files/location --output dart/files/location');
+    stdout.writeln(
+        '  dart run dsql --generate --input sql/files/location --output dart/files/location');
     exit(0);
   }
 
@@ -106,7 +127,9 @@ void _migrate(Directory root, Directory input, Directory output) async {
     _showOutputError(p.relative(input.path, from: Directory.current.path));
     exit(0);
   }
-  final files = input.listSync(recursive: true).where((f) => p.extension(f.path) == '.sql');
+  final files = input
+      .listSync(recursive: true)
+      .where((f) => p.extension(f.path) == '.sql');
   if (files.isEmpty) {
     _showFilesError(p.relative(input.path, from: Directory.current.path));
     exit(0);
@@ -128,7 +151,8 @@ void _migrate(Directory root, Directory input, Directory output) async {
       ),
     );
 
-    final migrations = files.map((file) => File(file.path).readAsLinesSync().join('\n'));
+    final migrations =
+        files.map((file) => File(file.path).readAsLinesSync().join('\n'));
 
     final newTables = migrations.map(_regTb.allMatches).expand((m) => m).fold(
       <String, String>{},
@@ -149,7 +173,8 @@ void _migrate(Directory root, Directory input, Directory output) async {
         final check = checkResult.first.first as bool;
 
         if (check) {
-          final last = await tx.execute('SELECT * FROM __migrations ORDER BY created_at DESC LIMIT 1;');
+          final last = await tx.execute(
+              'SELECT * FROM __migrations ORDER BY created_at DESC LIMIT 1;');
 
           if (last.isNotEmpty) {
             final [
@@ -166,7 +191,8 @@ void _migrate(Directory root, Directory input, Directory output) async {
                 parameters: [schema, '__migrations'],
               );
 
-              for (final name in tablesResult.map((r) => r.join(', ')).toList()) {
+              for (final name
+                  in tablesResult.map((r) => r.join(', ')).toList()) {
                 await tx.execute('DROP TABLE IF EXISTS $name CASCADE;');
               }
 
@@ -175,11 +201,14 @@ void _migrate(Directory root, Directory input, Directory output) async {
                 parameters: [jsonEncode(newTables)],
               );
 
-              await tx.execute(migrations.join('\n'), queryMode: QueryMode.simple);
+              await tx.execute(migrations.join('\n'),
+                  queryMode: QueryMode.simple);
 
-              stdout.writeln('Updated, the current version is ${insertMigration.first.first as int}!');
+              stdout.writeln(
+                  'Updated, the current version is ${insertMigration.first.first as int}!');
             } else {
-              stdout.writeln('Nothing to do, the current version is ${last.first.first as int}!');
+              stdout.writeln(
+                  'Nothing to do, the current version is ${last.first.first as int}!');
             }
           } else {
             stdout.writeln('Updating...');
@@ -189,12 +218,15 @@ void _migrate(Directory root, Directory input, Directory output) async {
               parameters: [jsonEncode(newTables)],
             );
 
-            await tx.execute(migrations.join('\n'), queryMode: QueryMode.simple);
+            await tx.execute(migrations.join('\n'),
+                queryMode: QueryMode.simple);
 
-            stdout.writeln('Updated, the current version is ${insertMigration.first.first as int}!');
+            stdout.writeln(
+                'Updated, the current version is ${insertMigration.first.first as int}!');
           }
         } else {
-          await tx.execute('CREATE TABLE __migrations (id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tables JSONB NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW());');
+          await tx.execute(
+              'CREATE TABLE __migrations (id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY, tables JSONB NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT NOW());');
 
           await tx.execute(
             r'INSERT INTO __migrations (tables) VALUES ($1);',
@@ -208,7 +240,8 @@ void _migrate(Directory root, Directory input, Directory output) async {
       },
     );
     await conn.close();
-    return _generate(input, output);
+    stdout.writeln('Done!');
+    exit(0);
   } on Exception catch (e) {
     _showExceptionError(e);
     exit(0);
@@ -217,10 +250,10 @@ void _migrate(Directory root, Directory input, Directory output) async {
 
 void _generate(Directory input, Directory output) {
   final entitiesBuffer = StringBuffer();
-
+  final dsqlBuffer = StringBuffer();
   final queriesBuffer = StringBuffer();
 
-  final tables = <_Table>[];
+  final tables = <Table>[];
 
   for (final current in input.listSync(recursive: true)) {
     if (p.extension(current.path) != '.sql') continue;
@@ -233,17 +266,22 @@ void _generate(Directory input, Directory output) {
 
     tables.addAll(
       _regTb.allMatches(content).map(
-            (match) => _Table(
+            (match) => Table(
               entity: match.group(1)!,
               name: match.group(2)!,
-              lines: match.group(3)!.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList(),
+              lines: match
+                  .group(3)!
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .where((l) => l.isNotEmpty)
+                  .toList(),
             ),
           ),
     );
   }
 
   for (var i = 0; i < tables.length; i++) {
-    _Table table = tables[i];
+    Table table = tables[i];
 
     for (final line in table.lines) {
       final match1 = _regFk1.firstMatch(line);
@@ -261,7 +299,7 @@ void _generate(Directory input, Directory output) {
         tables[index] = tables[index].copyWith(
           hasMany: {
             ...tables[index].hasMany,
-            _Constraint(
+            Constraint(
               name: constraintRef ?? table.name,
               originColumn: colOrigin,
               referencedColumn: columnRef,
@@ -273,7 +311,7 @@ void _generate(Directory input, Directory output) {
         tables[i] = tables[i].copyWith(
           hasOne: {
             ...tables[i].hasOne,
-            _Constraint(
+            Constraint(
               name: constraintRef ?? tables[i].name,
               originColumn: colOrigin,
               referencedColumn: columnRef,
@@ -286,7 +324,7 @@ void _generate(Directory input, Directory output) {
         final tableRef = match2.group(1)!;
         final columnRef = match2.group(2)!;
 
-        final key = _Constraint(
+        final key = Constraint(
           name: table.name,
           originColumn: columnOrigin,
           referencedColumn: columnRef,
@@ -305,25 +343,32 @@ void _generate(Directory input, Directory output) {
     }
   }
 
-  entitiesBuffer.writeln(_entitiesBuilder(tables));
+  dsqlBuffer.writeln(d.builder(tables));
+
+  entitiesBuffer.writeln(e.builder(tables));
 
   queriesBuffer.writeln(_dsqlBuilder(tables));
 
-  final entities = File(p.join(output.path, 'entities.dart'));
+  final entitiesFile = File(p.join(output.path, 'entities.dart'));
 
-  final dsql = File(p.join(output.path, 'dsql.dart'));
+  if (!entitiesFile.existsSync()) {
+    entitiesFile.createSync(recursive: true);
+  }
 
-  if (!entities.existsSync()) entities.createSync(recursive: true);
+  final dsqlFile = File(p.join(output.path, 'dsql.dart'));
 
-  entities.writeAsStringSync(_entitiesImportsBuilder(entitiesBuffer.toString()));
+  if (!dsqlFile.existsSync()) {
+    dsqlFile.createSync(recursive: true);
+  }
 
-  if (!dsql.existsSync()) dsql.createSync(recursive: true);
+  dsqlFile.writeAsStringSync(dsqlBuffer.toString());
 
-  dsql.writeAsStringSync(_dsqlImportsBuilder(queriesBuffer.toString()));
+  entitiesFile.writeAsStringSync(entitiesBuffer.toString());
 
   _format(output);
 
-  stdout.writeln('Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
+  stdout.writeln(
+      'Done, your dart files are in ${p.relative(output.path, from: Directory.current.path)}!');
 
   exit(0);
 }
@@ -341,7 +386,13 @@ Type _fieldType(String col) {
 
   return switch (sql) {
     'TEXT' || 'UUID' || 'CHAR' => String,
-    'SMALLINT' || 'INTEGER' || 'BIGINT' || 'SERIAL' || 'BIGSERIAL' || 'SMALLSERIAL' => int,
+    'SMALLINT' ||
+    'INTEGER' ||
+    'BIGINT' ||
+    'SERIAL' ||
+    'BIGSERIAL' ||
+    'SMALLSERIAL' =>
+      int,
     'REAL' || 'DECIMAL' || 'NUMERIC' || 'DOUBLE' => double,
     'BOOLEAN' => bool,
     'TIMESTAMP' || 'TIMESTAMPTZ' || 'DATE' || 'TIME' => DateTime,
@@ -349,15 +400,24 @@ Type _fieldType(String col) {
   };
 }
 
+String _fieldValueToMap(Type t) {
+  if (t == DateTime) {
+    return '.toIso8601String()';
+  }
+  return '';
+}
+
 bool _isRequired(String col) {
-  if (col.toUpperCase().contains('DEFAULT') || !col.toUpperCase().contains('NOT NULL')) {
+  if (col.toUpperCase().contains('DEFAULT') ||
+      !col.toUpperCase().contains('NOT NULL')) {
     return false;
   }
   return true;
 }
 
 bool _isNullable(String col) {
-  return !col.toUpperCase().contains('NOT NULL') && !col.toUpperCase().contains('PRIMARY KEY');
+  return !col.toUpperCase().contains('NOT NULL') &&
+      !col.toUpperCase().contains('PRIMARY KEY');
 }
 
 bool _isPrimaryKey(String col) {
@@ -369,7 +429,9 @@ bool _hasUniqueKey(List<String> cols) {
 }
 
 Map<String, Type> _getUniqueKeysMapped(List<String> cols) {
-  return Map.fromEntries(cols.where((col) => col.toUpperCase().contains('UNIQUE')).map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
+  return Map.fromEntries(cols
+      .where((col) => col.toUpperCase().contains('UNIQUE'))
+      .map((col) => MapEntry(col.split(' ')[0], _fieldType(col))));
 }
 
 bool _hasPrimaryKey(List<String> cols) {
@@ -384,13 +446,14 @@ Type _getPkType(List<String> cols) {
   return _fieldType(cols.firstWhere(_isPrimaryKey));
 }
 
-String _dsqlBuilder(List<_Table> tables) {
+String _dsqlBuilder(List<Table> tables) {
   final queries = <String>[];
 
   queries.add('''class DSQL {
 ${tables.map(
     (table) {
-      final name = table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
+      final name =
+          table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
 
       return '  late final ${table.repository} ${_tryToPluralize(name)};';
     },
@@ -399,7 +462,8 @@ ${tables.map(
   DSQL._(Connection conn, {bool verbose = false}) {
 ${tables.map(
     (table) {
-      final name = table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
+      final name =
+          table.name.startsWith('tb_') ? table.name.substring(3) : table.name;
 
       return '${_tryToPluralize(name)} = ${table.repository}(conn, verbose: verbose);';
     },
@@ -467,7 +531,9 @@ ${tables.map(
   ${_updateOneBuilder(table)}
 
   ${_deleteOneBuilder(table)}
-}''';
+}
+
+${_findManyParasmBuilder(table, (name) => tables.firstWhere((t) => t.name == name))}''';
     queries.add(content);
   }
 
@@ -487,16 +553,25 @@ $content
 ''';
 }
 
-String _entitiesBuilder(List<_Table> tables) {
+String _entitiesBuilder(List<Table> tables) {
   final entities = <String>[];
 
   for (final table in tables) {
     final containsHasMany = table.hasMany.isNotEmpty;
     final containsHasOne = table.hasOne.isNotEmpty;
 
-    final fieldsForHasMany =
-        containsHasMany ? table.hasMany.entries.map((entry) => 'final List<${entry.value.entity}>? \$${entry.key.nameNormalized};\nfinal int? \$${entry.key.nameNormalized}Count;').join('\n') : '';
-    final fieldsForHasOne = containsHasOne ? table.hasOne.entries.map((entry) => 'final ${entry.value.entity}? \$${_constraintNameNormalizer(entry.key.originColumn)};').join('\n') : '';
+    final fieldsForHasMany = containsHasMany
+        ? table.hasMany.entries
+            .map((entry) =>
+                'final Page<${entry.value.entity}>? \$${entry.key.nameNormalized};\nfinal int? \$${entry.key.nameNormalized}Count;')
+            .join('\n')
+        : '';
+    final fieldsForHasOne = containsHasOne
+        ? table.hasOne.entries
+            .map((entry) =>
+                'final ${entry.value.entity}? \$${_constraintNameNormalizer(entry.key.originColumn)};')
+            .join('\n')
+        : '';
 
     final content = '''class ${table.entity} {
     
@@ -518,7 +593,8 @@ ${table.columns.map((c) {
       }
     }).join('\n')}
 ${table.hasMany.entries.map((entry) {
-      final field = 'List<${entry.value.entity}>? Function()? \$${entry.key.nameNormalized},';
+      final field =
+          'Page<${entry.value.entity}>? Function()? \$${entry.key.nameNormalized},';
       final count = 'int? Function()? \$${entry.key.nameNormalized}Count,';
       return '$field $count';
     }).join('\n')}
@@ -533,8 +609,10 @@ ${table.columns.map((c) {
       }
     }).join('\n')}
 ${table.hasMany.entries.map((entry) {
-      final field = '\$${entry.key.nameNormalized}: \$${entry.key.nameNormalized} != null ? \$${entry.key.nameNormalized}() : this.\$${entry.key.nameNormalized},';
-      final count = '\$${entry.key.nameNormalized}Count: \$${entry.key.nameNormalized}Count != null ? \$${entry.key.nameNormalized}Count() : this.\$${entry.key.nameNormalized}Count,';
+      final field =
+          '\$${entry.key.nameNormalized}: \$${entry.key.nameNormalized} != null ? \$${entry.key.nameNormalized}() : this.\$${entry.key.nameNormalized},';
+      final count =
+          '\$${entry.key.nameNormalized}Count: \$${entry.key.nameNormalized}Count != null ? \$${entry.key.nameNormalized}Count() : this.\$${entry.key.nameNormalized}Count,';
       return '$field $count';
     }).join('\n')}
 ${table.hasOne.entries.map((entry) => '\$${_constraintNameNormalizer(entry.key.originColumn)}: \$${_constraintNameNormalizer(entry.key.originColumn)} != null ? \$${_constraintNameNormalizer(entry.key.originColumn)}() : this.\$${_constraintNameNormalizer(entry.key.originColumn)},').join('\n')}    
@@ -543,11 +621,13 @@ ${table.hasOne.entries.map((entry) => '\$${_constraintNameNormalizer(entry.key.o
 
   Map<String, dynamic> toMap() {
     return {
-${table.columns.map((c) => '\'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
+${table.columns.map((c) {
+      return '\'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}${_fieldValueToMap(_fieldType(c))},';
+    }).join('\n')}
 ${table.hasMany.entries.map((entry) {
       final key = entry.key.nameNormalized.toSnakeCase();
       final value = entry.key.nameNormalized;
-      return '\'$key\': \$$value?.map((entity) => entity.toMap()).toList(), \'${key}_count\': \$${value}Count,';
+      return '\'$key\': \$$value?.toMap((items) => items.map((item) => item.toMap()).toList()), \'${key}_count\': \$${value}Count,';
     }).join('\n')}
 ${containsHasOne ? table.hasOne.entries.map((entry) {
             return '\'${_constraintNameNormalizer(entry.key.originColumn).toSnakeCase()}\': \$${_constraintNameNormalizer(entry.key.originColumn)}?.toMap(),';
@@ -563,7 +643,7 @@ ${table.columns.map((c) => '${_fieldName(c)}: map[\'${_fieldName(c).toSnakeCase(
 ${table.hasMany.entries.map((entry) {
       final key = entry.key.nameNormalized.toSnakeCase();
       final value = entry.key.nameNormalized;
-      return '\$$value: List<${entry.value.entity}>.from((map[\'$key\'] as List?)?.map((innerMap) => ${entry.value.entity}.fromMap(innerMap),) ?? [],), \$${key}Count: map[\'${key}_count\'],';
+      return '\$$value: Page.fromMap(map[\'$key\'] as Map<String, dynamic>, ($value) => $value.map((v) => ${entry.value.entity}.fromMap(v)).toList(),), \$${key}Count: map[\'${key}_count\'],';
     }).join('\n')}
 ${containsHasOne ? table.hasOne.entries.map((entry) {
             return '\$${_constraintNameNormalizer(entry.key.originColumn)}: map[\'${_constraintNameNormalizer(entry.key.originColumn).toSnakeCase()}\'] != null ? ${entry.value.entity}.fromMap(map[\'${_constraintNameNormalizer(entry.key.originColumn).toSnakeCase()}\']) : null,';
@@ -586,19 +666,10 @@ ${containsHasOne ? table.hasOne.entries.map((entry) {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    ${table.hasMany.isEmpty ? '' : '''bool listEquals(List? a, List? b) {
-      if (a == null && b == null) return true;
-      if (a?.length != b?.length) return false;
-      for (int i = 0; i < (a?.length ?? 0); i++) {
-        if (a?[i] != b?[i]) return false;
-      }
-      return true;
-    }'''}
-
     return other is ${table.entity} && ${table.columns.map((c) {
       return 'other.${_fieldName(c)} == ${_fieldName(c)}';
     }).join(' && ')}${containsHasMany ? ' && ' : ''}${table.hasMany.entries.map((entry) {
-      return 'listEquals(other.\$${entry.key.nameNormalized}, \$${entry.key.nameNormalized}) && other.\$${entry.key.nameNormalized}Count == \$${entry.key.nameNormalized}Count';
+      return 'other.\$${entry.key.nameNormalized} == \$${entry.key.nameNormalized} && other.\$${entry.key.nameNormalized}Count == \$${entry.key.nameNormalized}Count';
     }).join(' && ')}${containsHasOne ? ' && ' : ''}${table.hasOne.entries.map((entry) {
       return 'other.\$${_constraintNameNormalizer(entry.key.originColumn)} == \$${_constraintNameNormalizer(entry.key.originColumn)}';
     }).join(' && ')};
@@ -622,7 +693,7 @@ ${containsHasOne ? table.hasOne.entries.map((entry) {
   return entities.join('\n\n');
 }
 
-String _insertOneBuilder(_Table table) {
+String _insertOneBuilder(Table table) {
   return '''AsyncResult<${table.entity}, Exception> insertOne({
 ${table.columns.where((c) => _isRequired(c)).map((c) => 'required ${_fieldType(c)} ${_fieldName(c)},').join('\n')}
   }) async {
@@ -665,7 +736,7 @@ ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
   }''';
 }
 
-String _insertManyBuilder(_Table table) {
+String _insertManyBuilder(Table table) {
   return '''AsyncResult<List<${table.entity}>, Exception> insertMany({
 required List<({${table.columns.where((c) => _isRequired(c)).map((c) => '${_fieldType(c)} ${_fieldName(c)}').join(', ')}})> values,
   }) async {
@@ -723,72 +794,227 @@ required List<({${table.columns.where((c) => _isRequired(c)).map((c) => '${_fiel
   }''';
 }
 
-String _findManyBuilder(_Table table) {
-  return '''AsyncResult<List<${table.entity}>, Exception> findMany({
-  ${table.columns.map((c) => 'Where? ${_fieldName(c)},').join('\n')}
-  int? limit,
-  int? offset,
-  OrderBy? orderBy,
-  }) async {
+String _findManyParasmBuilder(
+  Table table,
+  Table Function(String name) getTable,
+) {
+  final containsHasMany = table.hasMany.isNotEmpty;
+
+  final hasManyClasses = switch (containsHasMany) {
+    false => '',
+    true => table.hasMany.entries
+        .map((entry) =>
+            '''class Include${table.rawEntity}${entry.key.nameNormalized.toSnakeCase().toCamelCase()} {
+${entry.value.columns.where((c) => entry.key.originColumn != _fieldName(c).toSnakeCase()).map((c) => 'final Where? ${_fieldName(c)};').join('\n')}
+final int? page;
+final int? pageSize;
+final OrderBy? orderBy;
+final bool? withCount;
+
+const Include${table.rawEntity}${entry.key.nameNormalized.toSnakeCase().toCamelCase()}({
+${entry.value.columns.where((c) => entry.key.originColumn != _fieldName(c).toSnakeCase()).map((c) => 'this.${_fieldName(c)},').join('\n')}
+this.page,
+this.pageSize,
+this.orderBy,
+this.withCount,
+});
+
+Map<String, Where> get wheres => {
+${entry.value.columns.where((c) => entry.key.originColumn != _fieldName(c).toSnakeCase()).map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)}!,').join('\n')}
+};
+}''')
+        .join('\n\n'),
+  };
+
+  return '''class FindMany${table.rawEntity}Params {
+${table.columns.map((c) => 'final Where? where${_fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
+${table.hasMany.entries.map((entry) => 'final Include${table.rawEntity}${entry.key.nameNormalized.toSnakeCase().toCamelCase()}? include${entry.key.nameNormalized.toSnakeCase().toCamelCase()};').join('\n')}
+final int? page;
+final int? pageSize;
+final OrderBy? orderBy;
+
+const FindMany${table.rawEntity}Params({
+${table.columns.map((c) => 'this.where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+${table.hasMany.entries.map((entry) => 'this.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()},').join('\n')}
+this.page,
+this.pageSize,
+this.orderBy,
+});
+
+Map<String, Where> get wheres => {
+${table.columns.map((c) => 'if (where${_fieldName(c).toSnakeCase().toCamelCase()} != null) \'${_fieldName(c).toSnakeCase()}\': where${_fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
+${table.hasMany.entries.map((entry) => '...?include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.wheres,').join('\n')}
+};
+  }
+  
+$hasManyClasses''';
+}
+
+String _findManyBuilder(Table table) {
+  return '''AsyncResult<Page<${table.entity}>, Exception> findMany([FindMany${table.rawEntity}Params params = const FindMany${table.rawEntity}Params()]) async {
     try {
-      String query = 'SELECT * FROM ${table.name};';
+      final data = await _conn.runTx<Page<${table.entity}>>((tx) async {
+        final offset = switch (params.page != null) {
+          false => 0,
+          true => params.page! - 1 < 0 ? 0 : params.page! - 1,
+        };
 
-      final wheres = <String, Where>{
-${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSnakeCase()}\': ${_fieldName(c)},').join('\n')}
-      };
+        final limit = params.pageSize ?? 10;
 
-      if (wheres.isNotEmpty) {
-        query = 'SELECT * FROM ${table.name} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}';
-      }
+        final orderBy = switch (params.orderBy != null) {
+          false => null,
+          true => params.orderBy,
+        };
 
-      if (offset != null) {
-        query += ' OFFSET \$offset';
-      }
+        final baseQuery = 'SELECT * FROM ${table.name}\${params.wheres.isNotEmpty ? ' WHERE \${params.wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}' : ''}\${orderBy != null ? ' ORDER BY \${orderBy.sql}' : ''} OFFSET \$offset LIMIT \$limit;';
 
-      if (limit != null) {
-        query += ' LIMIT \$limit';
-      }
+        final countQuery = 'SELECT COUNT(*) FROM ${table.name}\${params.wheres.isNotEmpty ? ' WHERE \${params.wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}' : ''};';
 
-      if (orderBy != null) {
-        query += ' ORDER BY \${orderBy.sql}';
-      }
+        final baseParameters = params.wheres.values.map((w) => w.value).toList();
+          
+        if (verbose) {
+          print('-' * 80);
 
-      query += ';';
+          print('QUERY: \$baseQuery');
 
-      if (verbose) {
-        print('${'-' * 80}');
+          print('PARAMETERS: \$baseParameters');
 
-        print('SQL => \$query');
+          print('-' * 80);
+        }
 
-        print('PARAMS => \${wheres.values.map((w) => w.value).toList()}');
+        final resultBase = await tx.execute(
+          baseQuery,
+          parameters: baseParameters,
+        );
 
-        print('${'-' * 80}');
-      }
+        final resultCount = await tx.execute(
+          countQuery,
+          parameters: baseParameters,
+        );
 
-      final result = await _conn.execute(
-        query, 
-        parameters: wheres.values.map((w) => w.value).toList(),
-      );
+        final count = resultCount[0][0] as int;
 
-      final entities = List<${table.entity}>.from(
-        result.map((row) {
-            final [${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}] = row as List;
-            
-            return ${table.entity}(
-              ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
+        if (resultBase.isEmpty) {
+          await tx.rollback();
+          return Page<${table.entity}>(
+            items: [],
+            page: offset,
+            pageSize: limit,
+          );
+        }
+
+        final entitiesBase = List<${table.entity}>.from(
+            resultBase.map((row) {
+              final [
+            ${table.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} ${_fieldName(c)},').join('\n')}
+              ] = row as List;
+
+              return ${table.entity}(
+            ${table.columns.map((c) => '${_fieldName(c)}: ${_fieldName(c)},').join('\n')}
+              );
+            },
+          ),
+        );
+
+        ${table.hasMany.entries.map((entry) => '''if (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()} != null) {
+          for (var i = 0; i < entitiesBase.length; i++) {
+            final entity = entitiesBase[i];
+
+            final joinedWheres = <String, Where>{
+              if (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.wheres.isNotEmpty ?? false) ...params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}!.wheres,
+              '${entry.key.originColumn.toSnakeCase()}': Where.eq(entity.${entry.key.referencedColumn}),
+            };
+
+            final joinedOffset = switch (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.page != null) {
+              false => 0,
+              true => params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}!.page! - 1 == 0 ? 0 : params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}!.page! - 1,
+            };
+
+            final joinedLimit = params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.pageSize ?? 10;
+
+            final joinedOrderBy = switch (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.orderBy != null) {
+              false => null,
+              true => params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.orderBy,
+            };
+
+            final joinedQuery = 'SELECT * FROM ${entry.value.name} WHERE \${joinedWheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}\${joinedOrderBy != null ? ' ORDER BY \${joinedOrderBy.sql}' : ''} OFFSET \$joinedOffset LIMIT \$joinedLimit';
+
+            final joinedParameters = joinedWheres.values.map((w) => w.value).toList();
+
+            final joinedCountQuery = 'SELECT COUNT(*) FROM ${entry.value.name} WHERE \${joinedWheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')}';
+
+            if (verbose) {
+              print('-' * 80);
+
+              print('QUERY: \$joinedQuery');
+
+              if (params.include${entry.key.nameNormalized.toSnakeCase().toCamelCase()}?.withCount ?? false) {
+                print('COUNT QUERY: \$joinedCountQuery');
+              }
+
+              print('PARAMETERS: \$joinedParameters');
+
+              print('-' * 80);
+            }
+
+            final joinedResult = await tx.execute(
+              joinedQuery,
+              parameters: joinedParameters,
             );
-          },
-        ),
-      );
 
-      return Success(entities);
+            final joinedCountResult = await tx.execute(
+              joinedCountQuery,
+              parameters: joinedParameters,
+            );
+
+            final ${entry.key.nameNormalized}Count = joinedCountResult[0][0] as int;
+
+            final joinedEntities = List<${entry.value.entity}>.from(
+              joinedResult.map((row) {
+                  final [
+                ${entry.value.columns.map((c) => '${_fieldType(c)}${_isNullable(c) ? '?' : ''} \$${_fieldName(c)},').join('\n')}
+                  ] = row as List;
+
+                  return ${entry.value.entity}(
+                ${entry.value.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
+                  );
+                },
+              ),
+            );
+
+            entitiesBase[i] = entity.copyWith(
+              \$${entry.key.nameNormalized}: () {
+                return Page(
+                  items: joinedEntities,
+                  page: joinedOffset + 1,
+                  pageSize: joinedLimit,
+                  hasNext: (joinedOffset + 1) * joinedLimit > ${entry.key.nameNormalized}Count,
+                  hasPrevious: (joinedOffset + 1) > 0,
+                );
+              },
+              \$${entry.key.nameNormalized}Count: () => ${entry.key.nameNormalized}Count,
+            );
+          }
+      }''').join('\n\n')}
+
+        return Page<${table.entity}>(
+          items: entitiesBase,
+          page: offset + 1,
+          pageSize: limit,
+          hasNext: (offset + 1) * limit > count,
+          hasPrevious: (offset + 1) > 0,
+        );
+      },
+    );
+
+    return Success(data);
     } on Exception catch (e) {
       return Error(e);
     }
   }''';
 }
 
-String _findOneBuilder(_Table table) {
+String _findOneBuilder(Table table) {
   return '''AsyncResult<${table.entity}, Exception> findOne({
   ${table.columns.map((c) => 'Where? ${_fieldName(c)},').join('\n')}
   }) async {
@@ -837,7 +1063,7 @@ ${table.columns.map((c) => 'if (${_fieldName(c)} != null) \'${_fieldName(c).toSn
   }''';
 }
 
-String _findByPkBuilder(_Table table) {
+String _findByPkBuilder(Table table) {
   return switch (_hasPrimaryKey(table.columns)) {
     false => '',
     true => '''AsyncResult<${table.entity}, Exception> findByPK(
@@ -883,7 +1109,7 @@ ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
   };
 }
 
-String _findByUniqueKeyBuilder(_Table table) {
+String _findByUniqueKeyBuilder(Table table) {
   return switch (_hasUniqueKey(table.columns)) {
     false => '',
     true => _getUniqueKeysMapped(table.columns).entries.map(
@@ -933,7 +1159,7 @@ String _findByUniqueKeyBuilder(_Table table) {
   };
 }
 
-String _updateOneBuilder(_Table table) {
+String _updateOneBuilder(Table table) {
   return '''AsyncResult<${table.entity}, Exception> updateOne({
 ${table.columns.map((c) => 'Where? where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
 ${table.columns.where((c) => !_isPrimaryKey(c)).map((c) => '${_fieldType(c)}? set${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
@@ -993,7 +1219,7 @@ ${table.columns.map((c) => '${_fieldName(c)}: \$${_fieldName(c)},').join('\n')}
   }''';
 }
 
-String _deleteOneBuilder(_Table table) {
+String _deleteOneBuilder(Table table) {
   return '''AsyncResult<${table.entity}, Exception> deleteOne({
 ${table.columns.map((c) => 'Where? where${_fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
   }) async {
@@ -1079,7 +1305,9 @@ String _tryToPluralize(String word) {
     return '${word.substring(0, word.length - 1)}oes';
   } else if (word.endsWith('er')) {
     return '${word.substring(0, word.length - 2)}ers';
-  } else if (word.endsWith('ing') || word.endsWith('ed') || word.endsWith('ers')) {
+  } else if (word.endsWith('ing') ||
+      word.endsWith('ed') ||
+      word.endsWith('ers')) {
     return word;
   } else {
     return '${word}s';
@@ -1170,60 +1398,6 @@ bool _mapEquals(Map<String, dynamic> m1, Map<String, dynamic> m2) {
     }
   }
   return true;
-}
-
-class _Table {
-  final String entity;
-  final String name;
-  final List<String> lines;
-  final Map<_Constraint, _Table> hasMany;
-  final Map<_Constraint, _Table> hasOne;
-
-  const _Table({
-    required this.entity,
-    required this.name,
-    required this.lines,
-    this.hasMany = const {},
-    this.hasOne = const {},
-  });
-
-  String get rawEntity => entity.substring(0, entity.length - 6);
-
-  String get repository => '${_tryToPluralize(rawEntity)}Repository';
-
-  List<String> get columns => lines.where((l) => !RegExp(r'^(CONSTRAINT|FOREIGN KEY)').hasMatch(l)).toList();
-
-  String get nameWithoutPrefixTB => switch (name.startsWith('tb_')) {
-        true => name.substring(3),
-        false => name,
-      };
-
-  _Table copyWith({
-    String? entity,
-    String? name,
-    List<String>? lines,
-    Map<_Constraint, _Table>? hasMany,
-    Map<_Constraint, _Table>? hasOne,
-  }) {
-    return _Table(
-      entity: entity ?? this.entity,
-      name: name ?? this.name,
-      lines: lines ?? this.lines,
-      hasMany: hasMany ?? this.hasMany,
-      hasOne: hasOne ?? this.hasOne,
-    );
-  }
-}
-
-class _Constraint {
-  final String name;
-  final String originColumn;
-  final String referencedTable;
-  final String referencedColumn;
-
-  _Constraint({required this.name, required this.originColumn, required this.referencedTable, required this.referencedColumn});
-
-  String get nameNormalized => _constraintNameNormalizer(name);
 }
 
 extension _ListExt<T> on Iterable<T> {
