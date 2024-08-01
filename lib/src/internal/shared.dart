@@ -40,20 +40,31 @@ bool isNullable(String col) {
       !col.toUpperCase().contains('PRIMARY KEY');
 }
 
-bool isPrimaryKey(String col) {
+bool isPk(String col) {
   return col.toUpperCase().contains('PRIMARY KEY');
 }
 
-bool hasPrimaryKey(List<String> cols) {
-  return cols.any(isPrimaryKey);
+bool hasPk(List<String> cols) {
+  return cols.any(isPk);
 }
 
 String getPkName(List<String> cols) {
-  return cols.firstWhere(isPrimaryKey).split(' ')[0];
+  return cols.firstWhere(isPk).split(' ')[0];
 }
 
 Type getPkType(List<String> cols) {
-  return fieldType(cols.firstWhere(isPrimaryKey));
+  return fieldType(cols.firstWhere(isPk));
+}
+
+Map<String, Type> getUniqueKeysMapped(List<String> cols) {
+  return Map.fromEntries(
+    cols.where((col) => col.toUpperCase().contains('UNIQUE')).map(
+          (col) => MapEntry(
+            col.split(' ')[0],
+            fieldType(col),
+          ),
+        ),
+  );
 }
 
 String tryToPluralize(String word) {

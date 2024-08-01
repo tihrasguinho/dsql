@@ -39,12 +39,21 @@ abstract class UpdateOneParams {
 
 abstract class UpdateManyParams {
   const UpdateManyParams();
+  Map<String, Where> get wheres;
+  String get query;
+  List get parameters;
 }
 
 abstract class DeleteOneParams {
   const DeleteOneParams();
+  Map<String, Where> get wheres;
+  String get query;
+  List get parameters;
 }
 
 abstract class DeleteManyParams {
   const DeleteManyParams();
+  Map<String, Where> get wheres;
+  String get query;
+  List get parameters;
 }

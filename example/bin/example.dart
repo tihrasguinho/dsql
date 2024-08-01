@@ -19,14 +19,9 @@ void main() async {
   final users = UsersRepository(conn, verbose: true);
 
   await users
-      .updateOne(
-        UpdateOneUserParams(
-          whereEmail: Where.eq('email1@example.com'),
-          whereCreatedAt: Where.lte(DateTime.now()),
-          name: 'Tiago Alves',
-          username: 'tihrasguinho',
-          email: 'tiago@gmail.com',
-          password: '667623',
+      .deleteMany(
+        DeleteManyUserParams(
+          whereEmail: Where.endsWith('example.com'),
         ),
       )
       .then(

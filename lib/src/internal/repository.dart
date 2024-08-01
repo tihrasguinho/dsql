@@ -219,17 +219,104 @@ String _repositoryBuilder(Table table) {
 
   @override
   AsyncResult<List<${table.entity}>, DSQLException> updateMany(UpdateMany${table.rawEntity}Params params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('UpdateMany${table.rawEntity}Params');
+        print('*' * 80);
+        print('QUERY: \${params.query}');
+        print('PARAMETERS: \${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result = await _conn.execute(params.query, parameters: params.parameters);
+
+      final entities = result.map(
+        (row) {
+          final [
+            ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
+          ] = row as List;
+
+          return ${table.entity}(
+            ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
+          );
+        },
+      );
+
+      return Success(entities.toList());
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
   AsyncResult<${table.entity}, DSQLException> deleteOne(DeleteOne${table.rawEntity}Params params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('DeleteOne${table.rawEntity}Params');
+        print('*' * 80);
+        print('QUERY: \${params.query}');
+        print('PARAMETERS: \${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result = await _conn.execute(params.query, parameters: params.parameters);
+
+      if (result.isEmpty) {
+        return Error(SQLException('No data found on table `${table.name}` to delete!'));
+      }
+
+      final [
+        ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
+      ] = result.first as List;
+
+      final entity = ${table.entity}(
+        ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
+      );
+
+      return Success(entity);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
   AsyncResult<List<${table.entity}>, DSQLException> deleteMany(DeleteMany${table.rawEntity}Params params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('DeleteMany${table.rawEntity}Params');
+        print('*' * 80);
+        print('QUERY: \${params.query}');
+        print('PARAMETERS: \${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result = await _conn.execute(params.query, parameters: params.parameters);
+
+      final entities = result.map(
+        (row) {
+          final [
+            ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
+          ] = row as List;
+
+          return ${table.entity}(
+            ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
+          );
+        },
+      );
+
+      return Success(entities.toList());
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 }''';
 }
@@ -349,12 +436,80 @@ String _findManyParamsBuilder(Table table) {
 }
 
 String _updateOneParamsBuilder(Table table) {
-  final cols = table.columns.where((c) => !isPrimaryKey(c)).toList();
+  final shouldGenerate =
+      hasPk(table.columns) || getUniqueKeysMapped(table.columns).isNotEmpty;
+
+  if (!shouldGenerate) {
+    return '''class UpdateOne${table.rawEntity}Params extends UpdateOneParams {
+      const UpdateOne${table.rawEntity}Params();
+
+      @override
+      Map<String, Where> get wheres => throw UnimplementedError();
+
+      @override
+      String get query => throw UnimplementedError();
+
+      @override
+      List get parameters => throw UnimplementedError();
+    }''';
+  }
+
+  final updatable = table.columns.where((c) => !isPk(c)).toList();
+  final conditionable = table.columns.where(
+    (c) {
+      return isPk(c) ||
+          getUniqueKeysMapped(table.columns).containsKey(
+            fieldName(c).toSnakeCase(),
+          );
+    },
+  ).toList();
   return '''class UpdateOne${table.rawEntity}Params extends UpdateOneParams {
+  ${conditionable.map((c) => '/// ${isPk(c) ? 'PrimaryKey' : 'UniqueKey'} `${table.name}.${fieldName(c).toSnakeCase()}`\nfinal Where? where${fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
+  ${updatable.map((c) => 'final ${fieldType(c)}? ${fieldName(c)};').join('\n')}
+
+  const UpdateOne${table.rawEntity}Params({
+    ${conditionable.map((c) => 'this.where${fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+    ${updatable.map((c) => 'this.${fieldName(c)},').join('\n')}
+  });
+
+  Map<String, dynamic> get values => {
+    ${updatable.map((c) => 'if (${fieldName(c)} != null) \'${fieldName(c).toSnakeCase()}\': ${fieldName(c)}').join(', ')}
+  };
+
+  @override
+  Map<String, Where> get wheres => {
+    ${conditionable.map((c) => 'if (where${fieldName(c).toSnakeCase().toCamelCase()} != null) \'${fieldName(c).toSnakeCase()}\': where${fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
+  };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException('UpdateOne${table.rawEntity}Params cannot be conditionless!');
+    }
+
+    if (wheres.length > 1) {
+      throw SQLException('UpdateOne${table.rawEntity}Params must have only one where!');
+    }
+
+    if (values.isEmpty) {
+      throw SQLException('UpdateOne${table.rawEntity}Params must have at least one value!');
+    }
+
+    return 'UPDATE ${table.name} SET \${values.entries.indexedMap((index, entry) => '\${entry.key} = \\\$\${index + 1}').join(', ')} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1 + values.length}').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => [...values.values, ...wheres.values.map((v) => v.value),];
+}''';
+}
+
+String _updateManyParamsBuilder(Table table) {
+  final cols = table.columns.where((c) => !isPk(c)).toList();
+  return '''class UpdateMany${table.rawEntity}Params extends UpdateManyParams {
   ${table.columns.map((c) => 'final Where? where${fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
   ${cols.map((c) => 'final ${fieldType(c)}? ${fieldName(c)};').join('\n')}
 
-  const UpdateOne${table.rawEntity}Params({
+  const UpdateMany${table.rawEntity}Params({
     ${table.columns.map((c) => 'this.where${fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
     ${cols.map((c) => 'this.${fieldName(c)},').join('\n')}
   });
@@ -370,15 +525,11 @@ String _updateOneParamsBuilder(Table table) {
 
   @override
   String get query {
-    if (wheres.isEmpty) {
-      throw SQLException('UpdateOne${table.rawEntity}Params must have at least one where!');
-    }
-
     if (values.isEmpty) {
-      throw SQLException('UpdateOne${table.rawEntity}Params must have at least one value!');
+      throw SQLException('UpdateMany${table.rawEntity}Params must have at least one value!');
     }
 
-    return 'UPDATE ${table.name} SET \${values.entries.indexedMap((i, e) => '\${e.key} = \\\$\${i + 1}').join(', ')} WHERE \${wheres.entries.map((entry) => '\${entry.key} \${entry.value.op} (SELECT \${entry.key} FROM ${table.name} WHERE \${wheres.entries.indexedMap((innerIndex, innerEntry) => '\${innerEntry.key} \${innerEntry.value.op} \\\$\${innerIndex + 1 + values.length}').join(' AND ')} LIMIT 1)').join(' AND ')} RETURNING *;';
+    return 'UPDATE ${table.name} SET \${values.entries.indexedMap((index, entry) => '\${entry.key} = \\\$\${index + 1}').join(', ')}\${wheres.isEmpty ? '' : ' WHERE \${wheres.entries.indexedMap((innerIndex, innerEntry) => '\${innerEntry.key} \${innerEntry.value.op} \\\$\${innerIndex + 1 + values.length}').join(' AND ')}'} RETURNING *;';
   }
 
   @override
@@ -386,20 +537,90 @@ String _updateOneParamsBuilder(Table table) {
 }''';
 }
 
-String _updateManyParamsBuilder(Table table) {
-  return '''class UpdateMany${table.rawEntity}Params extends UpdateManyParams {
-  const UpdateMany${table.rawEntity}Params();
-}''';
-}
-
 String _deleteOneParamsBuilder(Table table) {
+  final shouldGenerate =
+      hasPk(table.columns) || getUniqueKeysMapped(table.columns).isNotEmpty;
+
+  if (!shouldGenerate) {
+    return '''class DeleteOne${table.rawEntity}Params extends DeleteOneParams {
+      const DeleteOne${table.rawEntity}Params();
+
+      @override
+      Map<String, Where> get wheres => throw UnimplementedError();
+
+      @override
+      String get query => throw UnimplementedError();
+
+      @override
+      List get parameters => throw UnimplementedError();
+    }''';
+  }
+
+  final cols = table.columns.where(
+    (c) {
+      return isPk(c) ||
+          getUniqueKeysMapped(table.columns).containsKey(
+            fieldName(c).toSnakeCase(),
+          );
+    },
+  ).toList();
+
   return '''class DeleteOne${table.rawEntity}Params extends DeleteOneParams {
-  const DeleteOne${table.rawEntity}Params();
+  ${cols.map((c) => '/// ${isPk(c) ? 'PrimaryKey' : 'UniqueKey'} `${table.name}.${fieldName(c).toSnakeCase()}`\nfinal Where? where${fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
+
+  const DeleteOne${table.rawEntity}Params({
+    ${cols.map((c) => 'this.where${fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+  });
+
+  @override
+  Map<String, Where> get wheres => {
+    ${cols.map((c) => 'if (where${fieldName(c).toSnakeCase().toCamelCase()} != null) \'${fieldName(c).toSnakeCase()}\': where${fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
+  };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException('DeleteOne${table.rawEntity}Params cannot be conditionless!');
+    }
+
+    if (wheres.length > 1) {
+      throw SQLException('DeleteOne${table.rawEntity}Params can only have one condition!');
+    }
+
+    return 'DELETE FROM ${table.name} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => wheres.values.map((v) => v.value).toList();
 }''';
 }
 
 String _deleteManyParamsBuilder(Table table) {
+  final updatable = table.columns.where(isPk).toList();
   return '''class DeleteMany${table.rawEntity}Params extends DeleteManyParams {
-  const DeleteMany${table.rawEntity}Params();
+  ${table.columns.map((c) => '/// ${isPk(c) ? 'PrimaryKey' : 'UniqueKey'} `${table.name}.${fieldName(c).toSnakeCase()}`\nfinal Where? where${fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
+  ${updatable.map((c) => 'final ${fieldType(c)}? ${fieldName(c)};').join('\n')}
+  
+  const DeleteMany${table.rawEntity}Params({
+    ${table.columns.map((c) => 'this.where${fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+    ${updatable.map((c) => 'this.${fieldName(c)},').join('\n')}
+  });
+
+  @override
+  Map<String, Where> get wheres => {
+    ${table.columns.map((c) => 'if (where${fieldName(c).toSnakeCase().toCamelCase()} != null) \'${fieldName(c).toSnakeCase()}\': where${fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
+  };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException('DeleteMany${table.rawEntity}Params cannot be conditionless!');
+    }
+
+    return 'DELETE FROM ${table.name} WHERE \${wheres.entries.indexedMap((index, entry) => '\${entry.key} \${entry.value.op} \\\$\${index + 1}').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => wheres.values.map((v) => v.value).toList();
 }''';
 }
