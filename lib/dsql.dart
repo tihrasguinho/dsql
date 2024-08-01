@@ -2,6 +2,7 @@ library dsql;
 
 export 'package:postgres/postgres.dart' hide Result;
 
+export 'src/database.dart';
 export 'src/exceptions.dart';
 export 'src/extensions/iterable.dart';
 export 'src/order_by.dart';

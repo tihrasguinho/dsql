@@ -13,14 +13,6 @@ class UserEntity {
   final String? bio;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final Page<PostEntity>? $posts;
-  final int? $postsCount;
-  final Page<LikeEntity>? $likes;
-  final int? $likesCount;
-  final Page<FollowerEntity>? $followers;
-  final int? $followersCount;
-  final Page<FollowerEntity>? $following;
-  final int? $followingCount;
 
   const UserEntity({
     required this.id,
@@ -32,57 +24,7 @@ class UserEntity {
     this.bio,
     required this.createdAt,
     required this.updatedAt,
-    this.$posts,
-    this.$postsCount,
-    this.$likes,
-    this.$likesCount,
-    this.$followers,
-    this.$followersCount,
-    this.$following,
-    this.$followingCount,
   });
-
-  UserEntity copyWith({
-    String? id,
-    String? name,
-    String? username,
-    String? email,
-    String? password,
-    String? Function()? image,
-    String? Function()? bio,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    Page<PostEntity>? Function()? $posts,
-    int? Function()? $postsCount,
-    Page<LikeEntity>? Function()? $likes,
-    int? Function()? $likesCount,
-    Page<FollowerEntity>? Function()? $followers,
-    int? Function()? $followersCount,
-    Page<FollowerEntity>? Function()? $following,
-    int? Function()? $followingCount,
-  }) {
-    return UserEntity(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      username: username ?? this.username,
-      email: email ?? this.email,
-      password: password ?? this.password,
-      image: image != null ? image() : this.image,
-      bio: bio != null ? bio() : this.bio,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      $posts: $posts != null ? $posts() : this.$posts,
-      $postsCount: $postsCount != null ? $postsCount() : this.$postsCount,
-      $likes: $likes != null ? $likes() : this.$likes,
-      $likesCount: $likesCount != null ? $likesCount() : this.$likesCount,
-      $followers: $followers != null ? $followers() : this.$followers,
-      $followersCount:
-          $followersCount != null ? $followersCount() : this.$followersCount,
-      $following: $following != null ? $following() : this.$following,
-      $followingCount:
-          $followingCount != null ? $followingCount() : this.$followingCount,
-    );
-  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -93,62 +35,60 @@ class UserEntity {
       'password': password,
       'image': image,
       'bio': bio,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-      'posts':
-          $posts?.toMap((items) => items.map((item) => item.toMap()).toList()),
-      'posts_count': $postsCount,
-      'likes':
-          $likes?.toMap((items) => items.map((item) => item.toMap()).toList()),
-      'likes_count': $likesCount,
-      'followers': $followers
-          ?.toMap((items) => items.map((item) => item.toMap()).toList()),
-      'followers_count': $followersCount,
-      'following': $following
-          ?.toMap((items) => items.map((item) => item.toMap()).toList()),
-      'following_count': $followingCount,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
     };
+  }
+
+  factory UserEntity.fromMap(Map<String, dynamic> map) {
+    return UserEntity(
+      id: map['id'],
+      name: map['name'],
+      username: map['username'],
+      email: map['email'],
+      password: map['password'],
+      image: map['image'],
+      bio: map['bio'],
+      createdAt: map['created_at'],
+      updatedAt: map['updated_at'],
+    );
   }
 
   String toJson() => json.encode(toMap());
 
-  factory UserEntity.fromMap(Map<String, dynamic> map) {
+  factory UserEntity.fromJson(String source) {
+    return UserEntity.fromMap(json.decode(source));
+  }
+
+  factory UserEntity.fromRow(List row) {
+    final [
+      String id,
+      String name,
+      String username,
+      String email,
+      String password,
+      String? image,
+      String? bio,
+      DateTime createdAt,
+      DateTime updatedAt,
+    ] = row;
+
     return UserEntity(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      username: map['username'] as String,
-      email: map['email'] as String,
-      password: map['password'] as String,
-      image: map['image'] as String,
-      bio: map['bio'] as String,
-      createdAt: map['created_at'] as DateTime,
-      updatedAt: map['updated_at'] as DateTime,
-      $posts: Page.fromMap(
-        map['posts'] as Map<String, dynamic>,
-        (posts) => posts.map((v) => PostEntity.fromMap(v)).toList(),
-      ),
-      $postsCount: map['posts_count'],
-      $likes: Page.fromMap(
-        map['likes'] as Map<String, dynamic>,
-        (likes) => likes.map((v) => LikeEntity.fromMap(v)).toList(),
-      ),
-      $likesCount: map['likes_count'],
-      $followers: Page.fromMap(
-        map['followers'] as Map<String, dynamic>,
-        (followers) => followers.map((v) => FollowerEntity.fromMap(v)).toList(),
-      ),
-      $followersCount: map['followers_count'],
-      $following: Page.fromMap(
-        map['following'] as Map<String, dynamic>,
-        (following) => following.map((v) => FollowerEntity.fromMap(v)).toList(),
-      ),
-      $followingCount: map['following_count'],
+      id: id,
+      name: name,
+      username: username,
+      email: email,
+      password: password,
+      image: image,
+      bio: bio,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 
   @override
   String toString() {
-    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt, \$posts: ${$posts}, \$postsCount: ${$postsCount}, \$likes: ${$likes}, \$likesCount: ${$likesCount}, \$followers: ${$followers}, \$followersCount: ${$followersCount}, \$following: ${$following}, \$followingCount: ${$followingCount})';
+    return 'UserEntity(id: $id, name: $name, username: $username, email: $email, password: $password, image: $image, bio: $bio, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -164,15 +104,7 @@ class UserEntity {
         other.image == image &&
         other.bio == bio &&
         other.createdAt == createdAt &&
-        other.updatedAt == updatedAt &&
-        other.$posts == $posts &&
-        other.$postsCount == $postsCount &&
-        other.$likes == $likes &&
-        other.$likesCount == $likesCount &&
-        other.$followers == $followers &&
-        other.$followersCount == $followersCount &&
-        other.$following == $following &&
-        other.$followingCount == $followingCount;
+        other.updatedAt == updatedAt;
   }
 
   @override
@@ -185,15 +117,7 @@ class UserEntity {
         image.hashCode ^
         bio.hashCode ^
         createdAt.hashCode ^
-        updatedAt.hashCode ^
-        $posts.hashCode ^
-        $postsCount.hashCode ^
-        $likes.hashCode ^
-        $likesCount.hashCode ^
-        $followers.hashCode ^
-        $followersCount.hashCode ^
-        $following.hashCode ^
-        $followingCount.hashCode;
+        updatedAt.hashCode;
   }
 }
 
@@ -204,12 +128,6 @@ class PostEntity {
   final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final Page<PostEntity>? $replies;
-  final int? $repliesCount;
-  final Page<LikeEntity>? $likes;
-  final int? $likesCount;
-  final PostEntity? $post;
-  final UserEntity? $user;
 
   const PostEntity({
     required this.id,
@@ -218,44 +136,7 @@ class PostEntity {
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
-    this.$replies,
-    this.$repliesCount,
-    this.$likes,
-    this.$likesCount,
-    this.$post,
-    this.$user,
   });
-
-  PostEntity copyWith({
-    String? id,
-    String? Function()? postId,
-    String? content,
-    String? userId,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    Page<PostEntity>? Function()? $replies,
-    int? Function()? $repliesCount,
-    Page<LikeEntity>? Function()? $likes,
-    int? Function()? $likesCount,
-    PostEntity? Function()? $post,
-    UserEntity? Function()? $user,
-  }) {
-    return PostEntity(
-      id: id ?? this.id,
-      postId: postId != null ? postId() : this.postId,
-      content: content ?? this.content,
-      userId: userId ?? this.userId,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      $replies: $replies != null ? $replies() : this.$replies,
-      $repliesCount:
-          $repliesCount != null ? $repliesCount() : this.$repliesCount,
-      $likes: $likes != null ? $likes() : this.$likes,
-      $likesCount: $likesCount != null ? $likesCount() : this.$likesCount,
-      $post: $post != null ? $post() : this.$post,
-      $user: $user != null ? $user() : this.$user,
-    );
-  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -263,47 +144,51 @@ class PostEntity {
       'post_id': postId,
       'content': content,
       'user_id': userId,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-      'replies': $replies
-          ?.toMap((items) => items.map((item) => item.toMap()).toList()),
-      'replies_count': $repliesCount,
-      'likes':
-          $likes?.toMap((items) => items.map((item) => item.toMap()).toList()),
-      'likes_count': $likesCount,
-      'post': $post?.toMap(),
-      'user': $user?.toMap(),
+      'created_at': createdAt,
+      'updated_at': updatedAt,
     };
+  }
+
+  factory PostEntity.fromMap(Map<String, dynamic> map) {
+    return PostEntity(
+      id: map['id'],
+      postId: map['post_id'],
+      content: map['content'],
+      userId: map['user_id'],
+      createdAt: map['created_at'],
+      updatedAt: map['updated_at'],
+    );
   }
 
   String toJson() => json.encode(toMap());
 
-  factory PostEntity.fromMap(Map<String, dynamic> map) {
+  factory PostEntity.fromJson(String source) {
+    return PostEntity.fromMap(json.decode(source));
+  }
+
+  factory PostEntity.fromRow(List row) {
+    final [
+      String id,
+      String? postId,
+      String content,
+      String userId,
+      DateTime createdAt,
+      DateTime updatedAt,
+    ] = row;
+
     return PostEntity(
-      id: map['id'] as String,
-      postId: map['post_id'] as String,
-      content: map['content'] as String,
-      userId: map['user_id'] as String,
-      createdAt: map['created_at'] as DateTime,
-      updatedAt: map['updated_at'] as DateTime,
-      $replies: Page.fromMap(
-        map['replies'] as Map<String, dynamic>,
-        (replies) => replies.map((v) => PostEntity.fromMap(v)).toList(),
-      ),
-      $repliesCount: map['replies_count'],
-      $likes: Page.fromMap(
-        map['likes'] as Map<String, dynamic>,
-        (likes) => likes.map((v) => LikeEntity.fromMap(v)).toList(),
-      ),
-      $likesCount: map['likes_count'],
-      $post: map['post'] != null ? PostEntity.fromMap(map['post']) : null,
-      $user: map['user'] != null ? UserEntity.fromMap(map['user']) : null,
+      id: id,
+      postId: postId,
+      content: content,
+      userId: userId,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 
   @override
   String toString() {
-    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt, \$replies: ${$replies}, \$repliesCount: ${$repliesCount}, \$likes: ${$likes}, \$likesCount: ${$likesCount}, \$post: ${$post}, \$user: ${$user})';
+    return 'PostEntity(id: $id, postId: $postId, content: $content, userId: $userId, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -316,13 +201,7 @@ class PostEntity {
         other.content == content &&
         other.userId == userId &&
         other.createdAt == createdAt &&
-        other.updatedAt == updatedAt &&
-        other.$replies == $replies &&
-        other.$repliesCount == $repliesCount &&
-        other.$likes == $likes &&
-        other.$likesCount == $likesCount &&
-        other.$post == $post &&
-        other.$user == $user;
+        other.updatedAt == updatedAt;
   }
 
   @override
@@ -332,13 +211,7 @@ class PostEntity {
         content.hashCode ^
         userId.hashCode ^
         createdAt.hashCode ^
-        updatedAt.hashCode ^
-        $replies.hashCode ^
-        $repliesCount.hashCode ^
-        $likes.hashCode ^
-        $likesCount.hashCode ^
-        $post.hashCode ^
-        $user.hashCode;
+        updatedAt.hashCode;
   }
 }
 
@@ -347,63 +220,57 @@ class LikeEntity {
   final String postId;
   final String userId;
   final DateTime createdAt;
-  final PostEntity? $post;
-  final UserEntity? $user;
 
   const LikeEntity({
     required this.id,
     required this.postId,
     required this.userId,
     required this.createdAt,
-    this.$post,
-    this.$user,
   });
-
-  LikeEntity copyWith({
-    String? id,
-    String? postId,
-    String? userId,
-    DateTime? createdAt,
-    PostEntity? Function()? $post,
-    UserEntity? Function()? $user,
-  }) {
-    return LikeEntity(
-      id: id ?? this.id,
-      postId: postId ?? this.postId,
-      userId: userId ?? this.userId,
-      createdAt: createdAt ?? this.createdAt,
-      $post: $post != null ? $post() : this.$post,
-      $user: $user != null ? $user() : this.$user,
-    );
-  }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'post_id': postId,
       'user_id': userId,
-      'created_at': createdAt.toIso8601String(),
-      'post': $post?.toMap(),
-      'user': $user?.toMap(),
+      'created_at': createdAt,
     };
+  }
+
+  factory LikeEntity.fromMap(Map<String, dynamic> map) {
+    return LikeEntity(
+      id: map['id'],
+      postId: map['post_id'],
+      userId: map['user_id'],
+      createdAt: map['created_at'],
+    );
   }
 
   String toJson() => json.encode(toMap());
 
-  factory LikeEntity.fromMap(Map<String, dynamic> map) {
+  factory LikeEntity.fromJson(String source) {
+    return LikeEntity.fromMap(json.decode(source));
+  }
+
+  factory LikeEntity.fromRow(List row) {
+    final [
+      String id,
+      String postId,
+      String userId,
+      DateTime createdAt,
+    ] = row;
+
     return LikeEntity(
-      id: map['id'] as String,
-      postId: map['post_id'] as String,
-      userId: map['user_id'] as String,
-      createdAt: map['created_at'] as DateTime,
-      $post: map['post'] != null ? PostEntity.fromMap(map['post']) : null,
-      $user: map['user'] != null ? UserEntity.fromMap(map['user']) : null,
+      id: id,
+      postId: postId,
+      userId: userId,
+      createdAt: createdAt,
     );
   }
 
   @override
   String toString() {
-    return 'LikeEntity(id: $id, postId: $postId, userId: $userId, createdAt: $createdAt, \$post: ${$post}, \$user: ${$user})';
+    return 'LikeEntity(id: $id, postId: $postId, userId: $userId, createdAt: $createdAt)';
   }
 
   @override
@@ -414,19 +281,12 @@ class LikeEntity {
         other.id == id &&
         other.postId == postId &&
         other.userId == userId &&
-        other.createdAt == createdAt &&
-        other.$post == $post &&
-        other.$user == $user;
+        other.createdAt == createdAt;
   }
 
   @override
   int get hashCode {
-    return id.hashCode ^
-        postId.hashCode ^
-        userId.hashCode ^
-        createdAt.hashCode ^
-        $post.hashCode ^
-        $user.hashCode;
+    return id.hashCode ^ postId.hashCode ^ userId.hashCode ^ createdAt.hashCode;
   }
 }
 
@@ -434,61 +294,52 @@ class FollowerEntity {
   final String followerId;
   final String followingId;
   final DateTime createdAt;
-  final UserEntity? $follower;
-  final UserEntity? $following;
 
   const FollowerEntity({
     required this.followerId,
     required this.followingId,
     required this.createdAt,
-    this.$follower,
-    this.$following,
   });
-
-  FollowerEntity copyWith({
-    String? followerId,
-    String? followingId,
-    DateTime? createdAt,
-    UserEntity? Function()? $follower,
-    UserEntity? Function()? $following,
-  }) {
-    return FollowerEntity(
-      followerId: followerId ?? this.followerId,
-      followingId: followingId ?? this.followingId,
-      createdAt: createdAt ?? this.createdAt,
-      $follower: $follower != null ? $follower() : this.$follower,
-      $following: $following != null ? $following() : this.$following,
-    );
-  }
 
   Map<String, dynamic> toMap() {
     return {
       'follower_id': followerId,
       'following_id': followingId,
-      'created_at': createdAt.toIso8601String(),
-      'follower': $follower?.toMap(),
-      'following': $following?.toMap(),
+      'created_at': createdAt,
     };
+  }
+
+  factory FollowerEntity.fromMap(Map<String, dynamic> map) {
+    return FollowerEntity(
+      followerId: map['follower_id'],
+      followingId: map['following_id'],
+      createdAt: map['created_at'],
+    );
   }
 
   String toJson() => json.encode(toMap());
 
-  factory FollowerEntity.fromMap(Map<String, dynamic> map) {
+  factory FollowerEntity.fromJson(String source) {
+    return FollowerEntity.fromMap(json.decode(source));
+  }
+
+  factory FollowerEntity.fromRow(List row) {
+    final [
+      String followerId,
+      String followingId,
+      DateTime createdAt,
+    ] = row;
+
     return FollowerEntity(
-      followerId: map['follower_id'] as String,
-      followingId: map['following_id'] as String,
-      createdAt: map['created_at'] as DateTime,
-      $follower:
-          map['follower'] != null ? UserEntity.fromMap(map['follower']) : null,
-      $following: map['following'] != null
-          ? UserEntity.fromMap(map['following'])
-          : null,
+      followerId: followerId,
+      followingId: followingId,
+      createdAt: createdAt,
     );
   }
 
   @override
   String toString() {
-    return 'FollowerEntity(followerId: $followerId, followingId: $followingId, createdAt: $createdAt, \$follower: ${$follower}, \$following: ${$following})';
+    return 'FollowerEntity(followerId: $followerId, followingId: $followingId, createdAt: $createdAt)';
   }
 
   @override
@@ -498,17 +349,11 @@ class FollowerEntity {
     return other is FollowerEntity &&
         other.followerId == followerId &&
         other.followingId == followingId &&
-        other.createdAt == createdAt &&
-        other.$follower == $follower &&
-        other.$following == $following;
+        other.createdAt == createdAt;
   }
 
   @override
   int get hashCode {
-    return followerId.hashCode ^
-        followingId.hashCode ^
-        createdAt.hashCode ^
-        $follower.hashCode ^
-        $following.hashCode;
+    return followerId.hashCode ^ followingId.hashCode ^ createdAt.hashCode;
   }
 }

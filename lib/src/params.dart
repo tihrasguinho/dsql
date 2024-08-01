@@ -2,17 +2,13 @@ import 'where.dart';
 
 abstract class InsertOneParams {
   const InsertOneParams();
-
   String get query;
-
   List get parameters;
 }
 
 abstract class InsertManyParams {
   const InsertManyParams();
-
   String get query;
-
   List get parameters;
 }
 

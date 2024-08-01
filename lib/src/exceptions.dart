@@ -1,4 +1,4 @@
-abstract class DSQLException implements Exception {
+class DSQLException implements Exception {
   final String message;
   final StackTrace? stackTrace;
 
