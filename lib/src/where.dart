@@ -16,11 +16,14 @@ class Where {
 
   const Where.lte(dynamic value) : this._('<=', value);
 
-  const Where.startsWith(String value, {bool ignoreCase = true}) : this._(ignoreCase ? 'ILIKE' : 'LIKE', '$value%');
+  const Where.startsWith(String value, {bool ignoreCase = true})
+      : this._(ignoreCase ? 'ILIKE' : 'LIKE', '$value%');
 
-  const Where.endsWith(String value, {bool ignoreCase = true}) : this._(ignoreCase ? 'ILIKE' : 'LIKE', '%$value');
+  const Where.endsWith(String value, {bool ignoreCase = true})
+      : this._(ignoreCase ? 'ILIKE' : 'LIKE', '%$value');
 
-  const Where.contains(String value, {bool ignoreCase = true}) : this._(ignoreCase ? 'ILIKE' : 'LIKE', '%$value%');
+  const Where.contains(String value, {bool ignoreCase = true})
+      : this._(ignoreCase ? 'ILIKE' : 'LIKE', '%$value%');
 
   String sql(String column) => '$op @$column';
 }

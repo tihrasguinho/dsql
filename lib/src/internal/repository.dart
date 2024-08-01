@@ -148,7 +148,34 @@ String _repositoryBuilder(Table table) {
 
   @override
   AsyncResult<List<${table.entity}>, DSQLException> findMany([FindMany${table.rawEntity}Params params = const FindMany${table.rawEntity}Params()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindMany${table.rawEntity}Params');
+        print('*' * 80);
+        print('QUERY: \${params.query}');
+        print('PARAMETERS: \${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result = await _conn.execute(params.query, parameters: params.parameters);
+
+      final entities = result.map(
+        (row) {
+          final [
+            ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
+          ] = row as List;
+
+          return ${table.entity}(
+            ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
+          );
+        },
+      );
+
+      return Success(entities.toList());
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -158,7 +185,36 @@ String _repositoryBuilder(Table table) {
 
   @override
   AsyncResult<${table.entity}, DSQLException> updateOne(UpdateOne${table.rawEntity}Params params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('UpdateOne${table.rawEntity}Params');
+        print('*' * 80);
+        print('QUERY: \${params.query}');
+        print('PARAMETERS: \${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result = await _conn.execute(params.query, parameters: params.parameters);
+
+      if (result.isEmpty) {
+        return Error(SQLException('No data found on table `${table.name}` to update!'));
+      }
+
+      final [
+        ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
+      ] = result.first as List;
+
+      final entity = ${table.entity}(
+        ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
+      );
+
+      return Success(entity);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -249,16 +305,84 @@ String _findOneParamsBuider(Table table) {
 
 String _findManyParamsBuilder(Table table) {
   return '''class FindMany${table.rawEntity}Params extends FindManyParams {
-  const FindMany${table.rawEntity}Params();
+  ${table.columns.map((c) => 'final Where? ${fieldName(c)};').join('\n')}
+  final int page;
+  final int pageSize;
+  final OrderBy? orderBy;
+
+  const FindMany${table.rawEntity}Params({
+    ${table.columns.map((c) => 'this.${fieldName(c)},').join('\n')}
+    this.page = 1,
+    this.pageSize = 20,
+    this.orderBy,
+  });
 
   @override
-  Map<String, Where> get wheres => throw UnimplementedError();
+  Map<String, Where> get wheres => {
+    ${table.columns.map((c) => 'if (${fieldName(c)} != null) \'${fieldName(c).toSnakeCase()}\': ${fieldName(c)}!,').join('\n')}
+  };
+
+  @override
+  String get query {
+    final offsetQuery = switch (page >= 1) {
+      true => ' OFFSET \${page - 1}',
+      false => ' OFFSET 0',
+    };
+
+    final limitQuery = ' LIMIT \$pageSize';
+
+    final orderByQuery = switch (orderBy != null) {
+      false => '',
+      true => ' ORDER BY \${orderBy?.sql}',
+    };
+
+    if (wheres.isEmpty) {
+      return 'SELECT * FROM ${table.name}\$orderByQuery\$offsetQuery\$limitQuery;';
+    } else {
+      return 'SELECT * FROM ${table.name} WHERE \${wheres.entries.indexedMap((i, e) => '\${e.key} \${e.value.op} \\\$\${i + 1}').join(' AND ')}\$orderByQuery\$offsetQuery\$limitQuery;';
+    }
+  }
+
+  @override
+  List get parameters => wheres.values.map((v) => v.value).toList();
 }''';
 }
 
 String _updateOneParamsBuilder(Table table) {
+  final cols = table.columns.where((c) => !isPrimaryKey(c)).toList();
   return '''class UpdateOne${table.rawEntity}Params extends UpdateOneParams {
-  const UpdateOne${table.rawEntity}Params();
+  ${table.columns.map((c) => 'final Where? where${fieldName(c).toSnakeCase().toCamelCase()};').join('\n')}
+  ${cols.map((c) => 'final ${fieldType(c)}? ${fieldName(c)};').join('\n')}
+
+  const UpdateOne${table.rawEntity}Params({
+    ${table.columns.map((c) => 'this.where${fieldName(c).toSnakeCase().toCamelCase()},').join('\n')}
+    ${cols.map((c) => 'this.${fieldName(c)},').join('\n')}
+  });
+
+  Map<String, dynamic> get values => {
+    ${cols.map((c) => 'if (${fieldName(c)} != null) \'${fieldName(c).toSnakeCase()}\': ${fieldName(c)}').join(', ')}
+  };
+
+  @override
+  Map<String, Where> get wheres => {
+    ${table.columns.map((c) => 'if (where${fieldName(c).toSnakeCase().toCamelCase()} != null) \'${fieldName(c).toSnakeCase()}\': where${fieldName(c).toSnakeCase().toCamelCase()}!,').join('\n')}
+  };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException('UpdateOne${table.rawEntity}Params must have at least one where!');
+    }
+
+    if (values.isEmpty) {
+      throw SQLException('UpdateOne${table.rawEntity}Params must have at least one value!');
+    }
+
+    return 'UPDATE ${table.name} SET \${values.entries.indexedMap((i, e) => '\${e.key} = \\\$\${i + 1}').join(', ')} WHERE \${wheres.entries.map((entry) => '\${entry.key} \${entry.value.op} (SELECT \${entry.key} FROM ${table.name} WHERE \${wheres.entries.indexedMap((innerIndex, innerEntry) => '\${innerEntry.key} \${innerEntry.value.op} \\\$\${innerIndex + 1 + values.length}').join(' AND ')} LIMIT 1)').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => [...values.values, ...wheres.values.map((v) => v.value),];
 }''';
 }
 

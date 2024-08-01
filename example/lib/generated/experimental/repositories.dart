@@ -176,7 +176,51 @@ class UsersRepository extends Repository<
   @override
   AsyncResult<List<UserEntity>, DSQLException> findMany(
       [FindManyUserParams params = const FindManyUserParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyUserParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      final entities = result.map(
+        (row) {
+          final [
+            String $id,
+            String $name,
+            String $username,
+            String $email,
+            String $password,
+            String? $image,
+            String? $bio,
+            DateTime $createdAt,
+            DateTime $updatedAt,
+          ] = row as List;
+
+          return UserEntity(
+            id: $id,
+            name: $name,
+            username: $username,
+            email: $email,
+            password: $password,
+            image: $image,
+            bio: $bio,
+            createdAt: $createdAt,
+            updatedAt: $updatedAt,
+          );
+        },
+      );
+
+      return Success(entities.toList());
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -188,7 +232,54 @@ class UsersRepository extends Repository<
   @override
   AsyncResult<UserEntity, DSQLException> updateOne(
       UpdateOneUserParams params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('UpdateOneUserParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      if (result.isEmpty) {
+        return Error(
+            SQLException('No data found on table `tb_users` to update!'));
+      }
+
+      final [
+        String $id,
+        String $name,
+        String $username,
+        String $email,
+        String $password,
+        String? $image,
+        String? $bio,
+        DateTime $createdAt,
+        DateTime $updatedAt,
+      ] = result.first as List;
+
+      final entity = UserEntity(
+        id: $id,
+        name: $name,
+        username: $username,
+        email: $email,
+        password: $password,
+        image: $image,
+        bio: $bio,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
+      );
+
+      return Success(entity);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -310,14 +401,153 @@ class FindOneUserParams extends FindOneParams {
 }
 
 class FindManyUserParams extends FindManyParams {
-  const FindManyUserParams();
+  final Where? id;
+  final Where? name;
+  final Where? username;
+  final Where? email;
+  final Where? password;
+  final Where? image;
+  final Where? bio;
+  final Where? createdAt;
+  final Where? updatedAt;
+  final int page;
+  final int pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyUserParams({
+    this.id,
+    this.name,
+    this.username,
+    this.email,
+    this.password,
+    this.image,
+    this.bio,
+    this.createdAt,
+    this.updatedAt,
+    this.page = 1,
+    this.pageSize = 20,
+    this.orderBy,
+  });
 
   @override
-  Map<String, Where> get wheres => throw UnimplementedError();
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (name != null) 'name': name!,
+        if (username != null) 'username': username!,
+        if (email != null) 'email': email!,
+        if (password != null) 'password': password!,
+        if (image != null) 'image': image!,
+        if (bio != null) 'bio': bio!,
+        if (createdAt != null) 'created_at': createdAt!,
+        if (updatedAt != null) 'updated_at': updatedAt!,
+      };
+
+  @override
+  String get query {
+    final offsetQuery = switch (page >= 1) {
+      true => ' OFFSET ${page - 1}',
+      false => ' OFFSET 0',
+    };
+
+    final limitQuery = ' LIMIT $pageSize';
+
+    final orderByQuery = switch (orderBy != null) {
+      false => '',
+      true => ' ORDER BY ${orderBy?.sql}',
+    };
+
+    if (wheres.isEmpty) {
+      return 'SELECT * FROM tb_users$orderByQuery$offsetQuery$limitQuery;';
+    } else {
+      return 'SELECT * FROM tb_users WHERE ${wheres.entries.indexedMap((i, e) => '${e.key} ${e.value.op} \$${i + 1}').join(' AND ')}$orderByQuery$offsetQuery$limitQuery;';
+    }
+  }
+
+  @override
+  List get parameters => wheres.values.map((v) => v.value).toList();
 }
 
 class UpdateOneUserParams extends UpdateOneParams {
-  const UpdateOneUserParams();
+  final Where? whereId;
+  final Where? whereName;
+  final Where? whereUsername;
+  final Where? whereEmail;
+  final Where? wherePassword;
+  final Where? whereImage;
+  final Where? whereBio;
+  final Where? whereCreatedAt;
+  final Where? whereUpdatedAt;
+  final String? name;
+  final String? username;
+  final String? email;
+  final String? password;
+  final String? image;
+  final String? bio;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  const UpdateOneUserParams({
+    this.whereId,
+    this.whereName,
+    this.whereUsername,
+    this.whereEmail,
+    this.wherePassword,
+    this.whereImage,
+    this.whereBio,
+    this.whereCreatedAt,
+    this.whereUpdatedAt,
+    this.name,
+    this.username,
+    this.email,
+    this.password,
+    this.image,
+    this.bio,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  Map<String, dynamic> get values => {
+        if (name != null) 'name': name,
+        if (username != null) 'username': username,
+        if (email != null) 'email': email,
+        if (password != null) 'password': password,
+        if (image != null) 'image': image,
+        if (bio != null) 'bio': bio,
+        if (createdAt != null) 'created_at': createdAt,
+        if (updatedAt != null) 'updated_at': updatedAt
+      };
+
+  @override
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (whereName != null) 'name': whereName!,
+        if (whereUsername != null) 'username': whereUsername!,
+        if (whereEmail != null) 'email': whereEmail!,
+        if (wherePassword != null) 'password': wherePassword!,
+        if (whereImage != null) 'image': whereImage!,
+        if (whereBio != null) 'bio': whereBio!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt!,
+      };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException('UpdateOneUserParams must have at least one where!');
+    }
+
+    if (values.isEmpty) {
+      throw SQLException('UpdateOneUserParams must have at least one value!');
+    }
+
+    return 'UPDATE tb_users SET ${values.entries.indexedMap((i, e) => '${e.key} = \$${i + 1}').join(', ')} WHERE ${wheres.entries.map((entry) => '${entry.key} ${entry.value.op} (SELECT ${entry.key} FROM tb_users WHERE ${wheres.entries.indexedMap((innerIndex, innerEntry) => '${innerEntry.key} ${innerEntry.value.op} \$${innerIndex + 1 + values.length}').join(' AND ')} LIMIT 1)').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => [
+        ...values.values,
+        ...wheres.values.map((v) => v.value),
+      ];
 }
 
 class UpdateManyUserParams extends UpdateManyParams {
@@ -488,7 +718,45 @@ class PostsRepository extends Repository<
   @override
   AsyncResult<List<PostEntity>, DSQLException> findMany(
       [FindManyPostParams params = const FindManyPostParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyPostParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      final entities = result.map(
+        (row) {
+          final [
+            String $id,
+            String? $postId,
+            String $content,
+            String $userId,
+            DateTime $createdAt,
+            DateTime $updatedAt,
+          ] = row as List;
+
+          return PostEntity(
+            id: $id,
+            postId: $postId,
+            content: $content,
+            userId: $userId,
+            createdAt: $createdAt,
+            updatedAt: $updatedAt,
+          );
+        },
+      );
+
+      return Success(entities.toList());
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -500,7 +768,48 @@ class PostsRepository extends Repository<
   @override
   AsyncResult<PostEntity, DSQLException> updateOne(
       UpdateOnePostParams params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('UpdateOnePostParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      if (result.isEmpty) {
+        return Error(
+            SQLException('No data found on table `tb_posts` to update!'));
+      }
+
+      final [
+        String $id,
+        String? $postId,
+        String $content,
+        String $userId,
+        DateTime $createdAt,
+        DateTime $updatedAt,
+      ] = result.first as List;
+
+      final entity = PostEntity(
+        id: $id,
+        postId: $postId,
+        content: $content,
+        userId: $userId,
+        createdAt: $createdAt,
+        updatedAt: $updatedAt,
+      );
+
+      return Success(entity);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -605,14 +914,126 @@ class FindOnePostParams extends FindOneParams {
 }
 
 class FindManyPostParams extends FindManyParams {
-  const FindManyPostParams();
+  final Where? id;
+  final Where? postId;
+  final Where? content;
+  final Where? userId;
+  final Where? createdAt;
+  final Where? updatedAt;
+  final int page;
+  final int pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyPostParams({
+    this.id,
+    this.postId,
+    this.content,
+    this.userId,
+    this.createdAt,
+    this.updatedAt,
+    this.page = 1,
+    this.pageSize = 20,
+    this.orderBy,
+  });
 
   @override
-  Map<String, Where> get wheres => throw UnimplementedError();
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (postId != null) 'post_id': postId!,
+        if (content != null) 'content': content!,
+        if (userId != null) 'user_id': userId!,
+        if (createdAt != null) 'created_at': createdAt!,
+        if (updatedAt != null) 'updated_at': updatedAt!,
+      };
+
+  @override
+  String get query {
+    final offsetQuery = switch (page >= 1) {
+      true => ' OFFSET ${page - 1}',
+      false => ' OFFSET 0',
+    };
+
+    final limitQuery = ' LIMIT $pageSize';
+
+    final orderByQuery = switch (orderBy != null) {
+      false => '',
+      true => ' ORDER BY ${orderBy?.sql}',
+    };
+
+    if (wheres.isEmpty) {
+      return 'SELECT * FROM tb_posts$orderByQuery$offsetQuery$limitQuery;';
+    } else {
+      return 'SELECT * FROM tb_posts WHERE ${wheres.entries.indexedMap((i, e) => '${e.key} ${e.value.op} \$${i + 1}').join(' AND ')}$orderByQuery$offsetQuery$limitQuery;';
+    }
+  }
+
+  @override
+  List get parameters => wheres.values.map((v) => v.value).toList();
 }
 
 class UpdateOnePostParams extends UpdateOneParams {
-  const UpdateOnePostParams();
+  final Where? whereId;
+  final Where? wherePostId;
+  final Where? whereContent;
+  final Where? whereUserId;
+  final Where? whereCreatedAt;
+  final Where? whereUpdatedAt;
+  final String? postId;
+  final String? content;
+  final String? userId;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  const UpdateOnePostParams({
+    this.whereId,
+    this.wherePostId,
+    this.whereContent,
+    this.whereUserId,
+    this.whereCreatedAt,
+    this.whereUpdatedAt,
+    this.postId,
+    this.content,
+    this.userId,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  Map<String, dynamic> get values => {
+        if (postId != null) 'post_id': postId,
+        if (content != null) 'content': content,
+        if (userId != null) 'user_id': userId,
+        if (createdAt != null) 'created_at': createdAt,
+        if (updatedAt != null) 'updated_at': updatedAt
+      };
+
+  @override
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (wherePostId != null) 'post_id': wherePostId!,
+        if (whereContent != null) 'content': whereContent!,
+        if (whereUserId != null) 'user_id': whereUserId!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+        if (whereUpdatedAt != null) 'updated_at': whereUpdatedAt!,
+      };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException('UpdateOnePostParams must have at least one where!');
+    }
+
+    if (values.isEmpty) {
+      throw SQLException('UpdateOnePostParams must have at least one value!');
+    }
+
+    return 'UPDATE tb_posts SET ${values.entries.indexedMap((i, e) => '${e.key} = \$${i + 1}').join(', ')} WHERE ${wheres.entries.map((entry) => '${entry.key} ${entry.value.op} (SELECT ${entry.key} FROM tb_posts WHERE ${wheres.entries.indexedMap((innerIndex, innerEntry) => '${innerEntry.key} ${innerEntry.value.op} \$${innerIndex + 1 + values.length}').join(' AND ')} LIMIT 1)').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => [
+        ...values.values,
+        ...wheres.values.map((v) => v.value),
+      ];
 }
 
 class UpdateManyPostParams extends UpdateManyParams {
@@ -771,7 +1192,41 @@ class LikesRepository extends Repository<
   @override
   AsyncResult<List<LikeEntity>, DSQLException> findMany(
       [FindManyLikeParams params = const FindManyLikeParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyLikeParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      final entities = result.map(
+        (row) {
+          final [
+            String $id,
+            String $postId,
+            String $userId,
+            DateTime $createdAt,
+          ] = row as List;
+
+          return LikeEntity(
+            id: $id,
+            postId: $postId,
+            userId: $userId,
+            createdAt: $createdAt,
+          );
+        },
+      );
+
+      return Success(entities.toList());
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -783,7 +1238,44 @@ class LikesRepository extends Repository<
   @override
   AsyncResult<LikeEntity, DSQLException> updateOne(
       UpdateOneLikeParams params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('UpdateOneLikeParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      if (result.isEmpty) {
+        return Error(
+            SQLException('No data found on table `tb_likes` to update!'));
+      }
+
+      final [
+        String $id,
+        String $postId,
+        String $userId,
+        DateTime $createdAt,
+      ] = result.first as List;
+
+      final entity = LikeEntity(
+        id: $id,
+        postId: $postId,
+        userId: $userId,
+        createdAt: $createdAt,
+      );
+
+      return Success(entity);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -882,14 +1374,108 @@ class FindOneLikeParams extends FindOneParams {
 }
 
 class FindManyLikeParams extends FindManyParams {
-  const FindManyLikeParams();
+  final Where? id;
+  final Where? postId;
+  final Where? userId;
+  final Where? createdAt;
+  final int page;
+  final int pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyLikeParams({
+    this.id,
+    this.postId,
+    this.userId,
+    this.createdAt,
+    this.page = 1,
+    this.pageSize = 20,
+    this.orderBy,
+  });
 
   @override
-  Map<String, Where> get wheres => throw UnimplementedError();
+  Map<String, Where> get wheres => {
+        if (id != null) 'id': id!,
+        if (postId != null) 'post_id': postId!,
+        if (userId != null) 'user_id': userId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+
+  @override
+  String get query {
+    final offsetQuery = switch (page >= 1) {
+      true => ' OFFSET ${page - 1}',
+      false => ' OFFSET 0',
+    };
+
+    final limitQuery = ' LIMIT $pageSize';
+
+    final orderByQuery = switch (orderBy != null) {
+      false => '',
+      true => ' ORDER BY ${orderBy?.sql}',
+    };
+
+    if (wheres.isEmpty) {
+      return 'SELECT * FROM tb_likes$orderByQuery$offsetQuery$limitQuery;';
+    } else {
+      return 'SELECT * FROM tb_likes WHERE ${wheres.entries.indexedMap((i, e) => '${e.key} ${e.value.op} \$${i + 1}').join(' AND ')}$orderByQuery$offsetQuery$limitQuery;';
+    }
+  }
+
+  @override
+  List get parameters => wheres.values.map((v) => v.value).toList();
 }
 
 class UpdateOneLikeParams extends UpdateOneParams {
-  const UpdateOneLikeParams();
+  final Where? whereId;
+  final Where? wherePostId;
+  final Where? whereUserId;
+  final Where? whereCreatedAt;
+  final String? postId;
+  final String? userId;
+  final DateTime? createdAt;
+
+  const UpdateOneLikeParams({
+    this.whereId,
+    this.wherePostId,
+    this.whereUserId,
+    this.whereCreatedAt,
+    this.postId,
+    this.userId,
+    this.createdAt,
+  });
+
+  Map<String, dynamic> get values => {
+        if (postId != null) 'post_id': postId,
+        if (userId != null) 'user_id': userId,
+        if (createdAt != null) 'created_at': createdAt
+      };
+
+  @override
+  Map<String, Where> get wheres => {
+        if (whereId != null) 'id': whereId!,
+        if (wherePostId != null) 'post_id': wherePostId!,
+        if (whereUserId != null) 'user_id': whereUserId!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+      };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException('UpdateOneLikeParams must have at least one where!');
+    }
+
+    if (values.isEmpty) {
+      throw SQLException('UpdateOneLikeParams must have at least one value!');
+    }
+
+    return 'UPDATE tb_likes SET ${values.entries.indexedMap((i, e) => '${e.key} = \$${i + 1}').join(', ')} WHERE ${wheres.entries.map((entry) => '${entry.key} ${entry.value.op} (SELECT ${entry.key} FROM tb_likes WHERE ${wheres.entries.indexedMap((innerIndex, innerEntry) => '${innerEntry.key} ${innerEntry.value.op} \$${innerIndex + 1 + values.length}').join(' AND ')} LIMIT 1)').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => [
+        ...values.values,
+        ...wheres.values.map((v) => v.value),
+      ];
 }
 
 class UpdateManyLikeParams extends UpdateManyParams {
@@ -941,14 +1527,12 @@ class FollowersRepository extends Repository<
       }
 
       final [
-        String $id,
         String $followerId,
         String $followingId,
         DateTime $createdAt,
       ] = result.first as List;
 
       final entity = FollowerEntity(
-        id: $id,
         followerId: $followerId,
         followingId: $followingId,
         createdAt: $createdAt,
@@ -984,14 +1568,12 @@ class FollowersRepository extends Repository<
       final entities = result.map(
         (row) {
           final [
-            String $id,
             String $followerId,
             String $followingId,
             DateTime $createdAt,
           ] = row as List;
 
           return FollowerEntity(
-            id: $id,
             followerId: $followerId,
             followingId: $followingId,
             createdAt: $createdAt,
@@ -1026,14 +1608,12 @@ class FollowersRepository extends Repository<
       }
 
       final [
-        String $id,
         String $followerId,
         String $followingId,
         DateTime $createdAt,
       ] = result.first as List;
 
       final entity = FollowerEntity(
-        id: $id,
         followerId: $followerId,
         followingId: $followingId,
         createdAt: $createdAt,
@@ -1050,7 +1630,39 @@ class FollowersRepository extends Repository<
   @override
   AsyncResult<List<FollowerEntity>, DSQLException> findMany(
       [FindManyFollowerParams params = const FindManyFollowerParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyFollowerParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      final entities = result.map(
+        (row) {
+          final [
+            String $followerId,
+            String $followingId,
+            DateTime $createdAt,
+          ] = row as List;
+
+          return FollowerEntity(
+            followerId: $followerId,
+            followingId: $followingId,
+            createdAt: $createdAt,
+          );
+        },
+      );
+
+      return Success(entities.toList());
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -1062,7 +1674,42 @@ class FollowersRepository extends Repository<
   @override
   AsyncResult<FollowerEntity, DSQLException> updateOne(
       UpdateOneFollowerParams params) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('UpdateOneFollowerParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final result =
+          await _conn.execute(params.query, parameters: params.parameters);
+
+      if (result.isEmpty) {
+        return Error(
+            SQLException('No data found on table `tb_followers` to update!'));
+      }
+
+      final [
+        String $followerId,
+        String $followingId,
+        DateTime $createdAt,
+      ] = result.first as List;
+
+      final entity = FollowerEntity(
+        followerId: $followerId,
+        followingId: $followingId,
+        createdAt: $createdAt,
+      );
+
+      return Success(entity);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -1127,13 +1774,11 @@ class InsertManyFollowerFields {
 }
 
 class FindOneFollowerParams extends FindOneParams {
-  final Where? id;
   final Where? followerId;
   final Where? followingId;
   final Where? createdAt;
 
   const FindOneFollowerParams({
-    this.id,
     this.followerId,
     this.followingId,
     this.createdAt,
@@ -1141,7 +1786,6 @@ class FindOneFollowerParams extends FindOneParams {
 
   @override
   Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
         if (followerId != null) 'follower_id': followerId!,
         if (followingId != null) 'following_id': followingId!,
         if (createdAt != null) 'created_at': createdAt!,
@@ -1161,14 +1805,104 @@ class FindOneFollowerParams extends FindOneParams {
 }
 
 class FindManyFollowerParams extends FindManyParams {
-  const FindManyFollowerParams();
+  final Where? followerId;
+  final Where? followingId;
+  final Where? createdAt;
+  final int page;
+  final int pageSize;
+  final OrderBy? orderBy;
+
+  const FindManyFollowerParams({
+    this.followerId,
+    this.followingId,
+    this.createdAt,
+    this.page = 1,
+    this.pageSize = 20,
+    this.orderBy,
+  });
 
   @override
-  Map<String, Where> get wheres => throw UnimplementedError();
+  Map<String, Where> get wheres => {
+        if (followerId != null) 'follower_id': followerId!,
+        if (followingId != null) 'following_id': followingId!,
+        if (createdAt != null) 'created_at': createdAt!,
+      };
+
+  @override
+  String get query {
+    final offsetQuery = switch (page >= 1) {
+      true => ' OFFSET ${page - 1}',
+      false => ' OFFSET 0',
+    };
+
+    final limitQuery = ' LIMIT $pageSize';
+
+    final orderByQuery = switch (orderBy != null) {
+      false => '',
+      true => ' ORDER BY ${orderBy?.sql}',
+    };
+
+    if (wheres.isEmpty) {
+      return 'SELECT * FROM tb_followers$orderByQuery$offsetQuery$limitQuery;';
+    } else {
+      return 'SELECT * FROM tb_followers WHERE ${wheres.entries.indexedMap((i, e) => '${e.key} ${e.value.op} \$${i + 1}').join(' AND ')}$orderByQuery$offsetQuery$limitQuery;';
+    }
+  }
+
+  @override
+  List get parameters => wheres.values.map((v) => v.value).toList();
 }
 
 class UpdateOneFollowerParams extends UpdateOneParams {
-  const UpdateOneFollowerParams();
+  final Where? whereFollowerId;
+  final Where? whereFollowingId;
+  final Where? whereCreatedAt;
+  final String? followerId;
+  final String? followingId;
+  final DateTime? createdAt;
+
+  const UpdateOneFollowerParams({
+    this.whereFollowerId,
+    this.whereFollowingId,
+    this.whereCreatedAt,
+    this.followerId,
+    this.followingId,
+    this.createdAt,
+  });
+
+  Map<String, dynamic> get values => {
+        if (followerId != null) 'follower_id': followerId,
+        if (followingId != null) 'following_id': followingId,
+        if (createdAt != null) 'created_at': createdAt
+      };
+
+  @override
+  Map<String, Where> get wheres => {
+        if (whereFollowerId != null) 'follower_id': whereFollowerId!,
+        if (whereFollowingId != null) 'following_id': whereFollowingId!,
+        if (whereCreatedAt != null) 'created_at': whereCreatedAt!,
+      };
+
+  @override
+  String get query {
+    if (wheres.isEmpty) {
+      throw SQLException(
+          'UpdateOneFollowerParams must have at least one where!');
+    }
+
+    if (values.isEmpty) {
+      throw SQLException(
+          'UpdateOneFollowerParams must have at least one value!');
+    }
+
+    return 'UPDATE tb_followers SET ${values.entries.indexedMap((i, e) => '${e.key} = \$${i + 1}').join(', ')} WHERE ${wheres.entries.map((entry) => '${entry.key} ${entry.value.op} (SELECT ${entry.key} FROM tb_followers WHERE ${wheres.entries.indexedMap((innerIndex, innerEntry) => '${innerEntry.key} ${innerEntry.value.op} \$${innerIndex + 1 + values.length}').join(' AND ')} LIMIT 1)').join(' AND ')} RETURNING *;';
+  }
+
+  @override
+  List get parameters => [
+        ...values.values,
+        ...wheres.values.map((v) => v.value),
+      ];
 }
 
 class UpdateManyFollowerParams extends UpdateManyParams {

@@ -26,10 +26,15 @@ abstract class FindOneParams {
 abstract class FindManyParams {
   const FindManyParams();
   Map<String, Where> get wheres;
+  String get query;
+  List get parameters;
 }
 
 abstract class UpdateOneParams {
   const UpdateOneParams();
+  Map<String, Where> get wheres;
+  String get query;
+  List get parameters;
 }
 
 abstract class UpdateManyParams {

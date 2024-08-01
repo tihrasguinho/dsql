@@ -431,7 +431,6 @@ class LikeEntity {
 }
 
 class FollowerEntity {
-  final String id;
   final String followerId;
   final String followingId;
   final DateTime createdAt;
@@ -439,7 +438,6 @@ class FollowerEntity {
   final UserEntity? $following;
 
   const FollowerEntity({
-    required this.id,
     required this.followerId,
     required this.followingId,
     required this.createdAt,
@@ -448,7 +446,6 @@ class FollowerEntity {
   });
 
   FollowerEntity copyWith({
-    String? id,
     String? followerId,
     String? followingId,
     DateTime? createdAt,
@@ -456,7 +453,6 @@ class FollowerEntity {
     UserEntity? Function()? $following,
   }) {
     return FollowerEntity(
-      id: id ?? this.id,
       followerId: followerId ?? this.followerId,
       followingId: followingId ?? this.followingId,
       createdAt: createdAt ?? this.createdAt,
@@ -467,7 +463,6 @@ class FollowerEntity {
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'follower_id': followerId,
       'following_id': followingId,
       'created_at': createdAt.toIso8601String(),
@@ -480,7 +475,6 @@ class FollowerEntity {
 
   factory FollowerEntity.fromMap(Map<String, dynamic> map) {
     return FollowerEntity(
-      id: map['id'] as String,
       followerId: map['follower_id'] as String,
       followingId: map['following_id'] as String,
       createdAt: map['created_at'] as DateTime,
@@ -494,7 +488,7 @@ class FollowerEntity {
 
   @override
   String toString() {
-    return 'FollowerEntity(id: $id, followerId: $followerId, followingId: $followingId, createdAt: $createdAt, \$follower: ${$follower}, \$following: ${$following})';
+    return 'FollowerEntity(followerId: $followerId, followingId: $followingId, createdAt: $createdAt, \$follower: ${$follower}, \$following: ${$following})';
   }
 
   @override
@@ -502,7 +496,6 @@ class FollowerEntity {
     if (identical(this, other)) return true;
 
     return other is FollowerEntity &&
-        other.id == id &&
         other.followerId == followerId &&
         other.followingId == followingId &&
         other.createdAt == createdAt &&
@@ -512,8 +505,7 @@ class FollowerEntity {
 
   @override
   int get hashCode {
-    return id.hashCode ^
-        followerId.hashCode ^
+    return followerId.hashCode ^
         followingId.hashCode ^
         createdAt.hashCode ^
         $follower.hashCode ^

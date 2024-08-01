@@ -22,7 +22,8 @@ class Page<T extends Object> {
     return 'Page(items: $items, total: $total, page: $page, pageSize: $pageSize, hasNext: $hasNext, hasPrevious: $hasPrevious)';
   }
 
-  Map<String, dynamic> toMap(List<Map<String, dynamic>> Function(List<T> origin) mapper) {
+  Map<String, dynamic> toMap(
+      List<Map<String, dynamic>> Function(List<T> origin) mapper) {
     return {
       'items': mapper(items),
       'total': total,
@@ -33,7 +34,8 @@ class Page<T extends Object> {
     };
   }
 
-  String toJson(List<Map<String, dynamic>> Function(List<T> origin) mapper) => json.encode(toMap(mapper));
+  String toJson(List<Map<String, dynamic>> Function(List<T> origin) mapper) =>
+      json.encode(toMap(mapper));
 
   factory Page.fromMap(
     Map<String, dynamic> map,
@@ -48,7 +50,8 @@ class Page<T extends Object> {
     );
   }
 
-  factory Page.fromJson(String source, List<T> Function(List<Map<String, dynamic>> map) mapper) {
+  factory Page.fromJson(
+      String source, List<T> Function(List<Map<String, dynamic>> map) mapper) {
     return Page.fromMap(json.decode(source) as Map<String, dynamic>, mapper);
   }
 
@@ -63,11 +66,21 @@ class Page<T extends Object> {
       return true;
     }
 
-    return listEquals(other.items, items) && other.total == total && other.page == page && other.pageSize == pageSize && other.hasNext == hasNext && other.hasPrevious == hasPrevious;
+    return listEquals(other.items, items) &&
+        other.total == total &&
+        other.page == page &&
+        other.pageSize == pageSize &&
+        other.hasNext == hasNext &&
+        other.hasPrevious == hasPrevious;
   }
 
   @override
   int get hashCode {
-    return items.hashCode ^ total.hashCode ^ page.hashCode ^ pageSize.hashCode ^ hasNext.hashCode ^ hasPrevious.hashCode;
+    return items.hashCode ^
+        total.hashCode ^
+        page.hashCode ^
+        pageSize.hashCode ^
+        hasNext.hashCode ^
+        hasPrevious.hashCode;
   }
 }

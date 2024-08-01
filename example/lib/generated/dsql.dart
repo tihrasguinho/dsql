@@ -554,14 +554,12 @@ class UsersRepository {
                 joinedResult.map(
                   (row) {
                     final [
-                      String $id,
                       String $followerId,
                       String $followingId,
                       DateTime $createdAt,
                     ] = row as List;
 
                     return FollowerEntity(
-                      id: $id,
                       followerId: $followerId,
                       followingId: $followingId,
                       createdAt: $createdAt,
@@ -650,14 +648,12 @@ class UsersRepository {
                 joinedResult.map(
                   (row) {
                     final [
-                      String $id,
                       String $followerId,
                       String $followingId,
                       DateTime $createdAt,
                     ] = row as List;
 
                     return FollowerEntity(
-                      id: $id,
                       followerId: $followerId,
                       followingId: $followingId,
                       createdAt: $createdAt,
@@ -1262,7 +1258,6 @@ class IncludeUserLikes {
 }
 
 class IncludeUserFollowers {
-  final Where? id;
   final Where? followingId;
   final Where? createdAt;
   final int? page;
@@ -1271,7 +1266,6 @@ class IncludeUserFollowers {
   final bool? withCount;
 
   const IncludeUserFollowers({
-    this.id,
     this.followingId,
     this.createdAt,
     this.page,
@@ -1281,14 +1275,12 @@ class IncludeUserFollowers {
   });
 
   Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
         if (followingId != null) 'following_id': followingId!,
         if (createdAt != null) 'created_at': createdAt!,
       };
 }
 
 class IncludeUserFollowing {
-  final Where? id;
   final Where? followerId;
   final Where? createdAt;
   final int? page;
@@ -1297,7 +1289,6 @@ class IncludeUserFollowing {
   final bool? withCount;
 
   const IncludeUserFollowing({
-    this.id,
     this.followerId,
     this.createdAt,
     this.page,
@@ -1307,7 +1298,6 @@ class IncludeUserFollowing {
   });
 
   Map<String, Where> get wheres => {
-        if (id != null) 'id': id!,
         if (followerId != null) 'follower_id': followerId!,
         if (createdAt != null) 'created_at': createdAt!,
       };
@@ -2665,14 +2655,12 @@ class FollowersRepository {
       final row = result.first;
 
       final [
-        String $id,
         String $followerId,
         String $followingId,
         DateTime $createdAt,
       ] = row as List;
 
       final entity = FollowerEntity(
-        id: $id,
         followerId: $followerId,
         followingId: $followingId,
         createdAt: $createdAt,
@@ -2729,14 +2717,12 @@ class FollowersRepository {
         result.map(
           (row) {
             final [
-              String $id,
               String $followerId,
               String $followingId,
               DateTime $createdAt,
             ] = row as List;
 
             final entity = FollowerEntity(
-              id: $id,
               followerId: $followerId,
               followingId: $followingId,
               createdAt: $createdAt,
@@ -2814,14 +2800,12 @@ class FollowersRepository {
             resultBase.map(
               (row) {
                 final [
-                  String id,
                   String followerId,
                   String followingId,
                   DateTime createdAt,
                 ] = row as List;
 
                 return FollowerEntity(
-                  id: id,
                   followerId: followerId,
                   followingId: followingId,
                   createdAt: createdAt,
@@ -2847,14 +2831,12 @@ class FollowersRepository {
   }
 
   AsyncResult<FollowerEntity, Exception> findOne({
-    Where? id,
     Where? followerId,
     Where? followingId,
     Where? createdAt,
   }) async {
     try {
       final wheres = <String, Where>{
-        if (id != null) 'id': id,
         if (followerId != null) 'follower_id': followerId,
         if (followingId != null) 'following_id': followingId,
         if (createdAt != null) 'created_at': createdAt,
@@ -2892,61 +2874,12 @@ class FollowersRepository {
       final row = result.first;
 
       final [
-        String $id,
         String $followerId,
         String $followingId,
         DateTime $createdAt,
       ] = row as List;
 
       final entity = FollowerEntity(
-        id: $id,
-        followerId: $followerId,
-        followingId: $followingId,
-        createdAt: $createdAt,
-      );
-
-      return Success(entity);
-    } on Exception catch (e) {
-      return Error(e);
-    }
-  }
-
-  AsyncResult<FollowerEntity, Exception> findByPK(String id) async {
-    try {
-      String query = r'SELECT * FROM tb_followers WHERE id = $1 LIMIT 1;';
-
-      if (verbose) {
-        print(
-            '--------------------------------------------------------------------------------');
-
-        print('SQL => $query');
-
-        print('PARAMS => $id');
-
-        print(
-            '--------------------------------------------------------------------------------');
-      }
-
-      final result = await _conn.execute(
-        query,
-        parameters: [id],
-      );
-
-      if (result.isEmpty) {
-        return Error(Exception('Fail to find data on table `tb_followers`!'));
-      }
-
-      final row = result.first;
-
-      final [
-        String $id,
-        String $followerId,
-        String $followingId,
-        DateTime $createdAt,
-      ] = row as List;
-
-      final entity = FollowerEntity(
-        id: $id,
         followerId: $followerId,
         followingId: $followingId,
         createdAt: $createdAt,
@@ -2959,7 +2892,6 @@ class FollowersRepository {
   }
 
   AsyncResult<FollowerEntity, Exception> updateOne({
-    Where? whereId,
     Where? whereFollowerId,
     Where? whereFollowingId,
     Where? whereCreatedAt,
@@ -2969,7 +2901,6 @@ class FollowersRepository {
   }) async {
     try {
       final wheres = <String, Where>{
-        if (whereId != null) 'id': whereId,
         if (whereFollowerId != null) 'follower_id': whereFollowerId,
         if (whereFollowingId != null) 'following_id': whereFollowingId,
         if (whereCreatedAt != null) 'created_at': whereCreatedAt,
@@ -3020,14 +2951,12 @@ class FollowersRepository {
       final row = result.first;
 
       final [
-        String $id,
         String $followerId,
         String $followingId,
         DateTime $createdAt,
       ] = row as List;
 
       final entity = FollowerEntity(
-        id: $id,
         followerId: $followerId,
         followingId: $followingId,
         createdAt: $createdAt,
@@ -3040,14 +2969,12 @@ class FollowersRepository {
   }
 
   AsyncResult<FollowerEntity, Exception> deleteOne({
-    Where? whereId,
     Where? whereFollowerId,
     Where? whereFollowingId,
     Where? whereCreatedAt,
   }) async {
     try {
       final wheres = <String, Where>{
-        if (whereId != null) 'id': whereId,
         if (whereFollowerId != null) 'follower_id': whereFollowerId,
         if (whereFollowingId != null) 'following_id': whereFollowingId,
         if (whereCreatedAt != null) 'created_at': whereCreatedAt,
@@ -3084,14 +3011,12 @@ class FollowersRepository {
       final row = result.first;
 
       final [
-        String $id,
         String $followerId,
         String $followingId,
         DateTime $createdAt,
       ] = row as List;
 
       final entity = FollowerEntity(
-        id: $id,
         followerId: $followerId,
         followingId: $followingId,
         createdAt: $createdAt,
@@ -3105,7 +3030,6 @@ class FollowersRepository {
 }
 
 class FindManyFollowerParams {
-  final Where? whereId;
   final Where? whereFollowerId;
   final Where? whereFollowingId;
   final Where? whereCreatedAt;
@@ -3115,7 +3039,6 @@ class FindManyFollowerParams {
   final OrderBy? orderBy;
 
   const FindManyFollowerParams({
-    this.whereId,
     this.whereFollowerId,
     this.whereFollowingId,
     this.whereCreatedAt,
@@ -3125,7 +3048,6 @@ class FindManyFollowerParams {
   });
 
   Map<String, Where> get wheres => {
-        if (whereId != null) 'id': whereId!,
         if (whereFollowerId != null) 'follower_id': whereFollowerId!,
         if (whereFollowingId != null) 'following_id': whereFollowingId!,
         if (whereCreatedAt != null) 'created_at': whereCreatedAt!,

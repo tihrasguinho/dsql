@@ -40,6 +40,22 @@ bool isNullable(String col) {
       !col.toUpperCase().contains('PRIMARY KEY');
 }
 
+bool isPrimaryKey(String col) {
+  return col.toUpperCase().contains('PRIMARY KEY');
+}
+
+bool hasPrimaryKey(List<String> cols) {
+  return cols.any(isPrimaryKey);
+}
+
+String getPkName(List<String> cols) {
+  return cols.firstWhere(isPrimaryKey).split(' ')[0];
+}
+
+Type getPkType(List<String> cols) {
+  return fieldType(cols.firstWhere(isPrimaryKey));
+}
+
 String tryToPluralize(String word) {
   if (word.endsWith('s')) {
     return word;
