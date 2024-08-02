@@ -1,3 +1,7 @@
+## 1.0.7
+
+- Removed deprecated methods
+
 ## 1.0.6
 
 - Added DSQL class with Connection and Pool support

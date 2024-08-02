@@ -163,29 +163,7 @@ class UsersRepository extends Repository<
         return Error(SQLException('Fail to insert data on table `tb_users`!'));
       }
 
-      final [
-        String $id,
-        String $name,
-        String $username,
-        String $email,
-        String $password,
-        String? $image,
-        String? $bio,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = UserEntity(
-        id: $id,
-        name: $name,
-        username: $username,
-        email: $email,
-        password: $password,
-        image: $image,
-        bio: $bio,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = UserEntity.fromRow(result.first);
 
       return Success(entity);
     } on Exception catch (e) {
@@ -213,33 +191,7 @@ class UsersRepository extends Repository<
         return Error(SQLException('Fail to insert data on table `tb_users`!'));
       }
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $name,
-            String $username,
-            String $email,
-            String $password,
-            String? $image,
-            String? $bio,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return UserEntity(
-            id: $id,
-            name: $name,
-            username: $username,
-            email: $email,
-            password: $password,
-            image: $image,
-            bio: $bio,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => UserEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -267,29 +219,7 @@ class UsersRepository extends Repository<
         return Error(SQLException('No data found on table `tb_users`!'));
       }
 
-      final [
-        String $id,
-        String $name,
-        String $username,
-        String $email,
-        String $password,
-        String? $image,
-        String? $bio,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = UserEntity(
-        id: $id,
-        name: $name,
-        username: $username,
-        email: $email,
-        password: $password,
-        image: $image,
-        bio: $bio,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = UserEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -315,33 +245,7 @@ class UsersRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $name,
-            String $username,
-            String $email,
-            String $password,
-            String? $image,
-            String? $bio,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return UserEntity(
-            id: $id,
-            name: $name,
-            username: $username,
-            email: $email,
-            password: $password,
-            image: $image,
-            bio: $bio,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => UserEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -376,29 +280,7 @@ class UsersRepository extends Repository<
             SQLException('No data found on table `tb_users` to update!'));
       }
 
-      final [
-        String $id,
-        String $name,
-        String $username,
-        String $email,
-        String $password,
-        String? $image,
-        String? $bio,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = UserEntity(
-        id: $id,
-        name: $name,
-        username: $username,
-        email: $email,
-        password: $password,
-        image: $image,
-        bio: $bio,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = UserEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -424,33 +306,7 @@ class UsersRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $name,
-            String $username,
-            String $email,
-            String $password,
-            String? $image,
-            String? $bio,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return UserEntity(
-            id: $id,
-            name: $name,
-            username: $username,
-            email: $email,
-            password: $password,
-            image: $image,
-            bio: $bio,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => UserEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -481,29 +337,7 @@ class UsersRepository extends Repository<
             SQLException('No data found on table `tb_users` to delete!'));
       }
 
-      final [
-        String $id,
-        String $name,
-        String $username,
-        String $email,
-        String $password,
-        String? $image,
-        String? $bio,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = UserEntity(
-        id: $id,
-        name: $name,
-        username: $username,
-        email: $email,
-        password: $password,
-        image: $image,
-        bio: $bio,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = UserEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -529,33 +363,7 @@ class UsersRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $name,
-            String $username,
-            String $email,
-            String $password,
-            String? $image,
-            String? $bio,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return UserEntity(
-            id: $id,
-            name: $name,
-            username: $username,
-            email: $email,
-            password: $password,
-            image: $image,
-            bio: $bio,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => UserEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -1028,23 +836,7 @@ class PostsRepository extends Repository<
         return Error(SQLException('Fail to insert data on table `tb_posts`!'));
       }
 
-      final [
-        String $id,
-        String? $postId,
-        String $content,
-        String $userId,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = PostEntity(
-        id: $id,
-        postId: $postId,
-        content: $content,
-        userId: $userId,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = PostEntity.fromRow(result.first);
 
       return Success(entity);
     } on Exception catch (e) {
@@ -1072,27 +864,7 @@ class PostsRepository extends Repository<
         return Error(SQLException('Fail to insert data on table `tb_posts`!'));
       }
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String? $postId,
-            String $content,
-            String $userId,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return PostEntity(
-            id: $id,
-            postId: $postId,
-            content: $content,
-            userId: $userId,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => PostEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -1120,23 +892,7 @@ class PostsRepository extends Repository<
         return Error(SQLException('No data found on table `tb_posts`!'));
       }
 
-      final [
-        String $id,
-        String? $postId,
-        String $content,
-        String $userId,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = PostEntity(
-        id: $id,
-        postId: $postId,
-        content: $content,
-        userId: $userId,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = PostEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -1162,27 +918,7 @@ class PostsRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String? $postId,
-            String $content,
-            String $userId,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return PostEntity(
-            id: $id,
-            postId: $postId,
-            content: $content,
-            userId: $userId,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => PostEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -1217,23 +953,7 @@ class PostsRepository extends Repository<
             SQLException('No data found on table `tb_posts` to update!'));
       }
 
-      final [
-        String $id,
-        String? $postId,
-        String $content,
-        String $userId,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = PostEntity(
-        id: $id,
-        postId: $postId,
-        content: $content,
-        userId: $userId,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = PostEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -1259,27 +979,7 @@ class PostsRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String? $postId,
-            String $content,
-            String $userId,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return PostEntity(
-            id: $id,
-            postId: $postId,
-            content: $content,
-            userId: $userId,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => PostEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -1310,23 +1010,7 @@ class PostsRepository extends Repository<
             SQLException('No data found on table `tb_posts` to delete!'));
       }
 
-      final [
-        String $id,
-        String? $postId,
-        String $content,
-        String $userId,
-        DateTime $createdAt,
-        DateTime $updatedAt,
-      ] = result.first as List;
-
-      final entity = PostEntity(
-        id: $id,
-        postId: $postId,
-        content: $content,
-        userId: $userId,
-        createdAt: $createdAt,
-        updatedAt: $updatedAt,
-      );
+      final entity = PostEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -1352,27 +1036,7 @@ class PostsRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String? $postId,
-            String $content,
-            String $userId,
-            DateTime $createdAt,
-            DateTime $updatedAt,
-          ] = row as List;
-
-          return PostEntity(
-            id: $id,
-            postId: $postId,
-            content: $content,
-            userId: $userId,
-            createdAt: $createdAt,
-            updatedAt: $updatedAt,
-          );
-        },
-      );
+      final entities = result.map((row) => PostEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -1757,19 +1421,7 @@ class LikesRepository extends Repository<
         return Error(SQLException('Fail to insert data on table `tb_likes`!'));
       }
 
-      final [
-        String $id,
-        String $postId,
-        String $userId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = LikeEntity(
-        id: $id,
-        postId: $postId,
-        userId: $userId,
-        createdAt: $createdAt,
-      );
+      final entity = LikeEntity.fromRow(result.first);
 
       return Success(entity);
     } on Exception catch (e) {
@@ -1797,23 +1449,7 @@ class LikesRepository extends Repository<
         return Error(SQLException('Fail to insert data on table `tb_likes`!'));
       }
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $postId,
-            String $userId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return LikeEntity(
-            id: $id,
-            postId: $postId,
-            userId: $userId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => LikeEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -1841,19 +1477,7 @@ class LikesRepository extends Repository<
         return Error(SQLException('No data found on table `tb_likes`!'));
       }
 
-      final [
-        String $id,
-        String $postId,
-        String $userId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = LikeEntity(
-        id: $id,
-        postId: $postId,
-        userId: $userId,
-        createdAt: $createdAt,
-      );
+      final entity = LikeEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -1879,23 +1503,7 @@ class LikesRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $postId,
-            String $userId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return LikeEntity(
-            id: $id,
-            postId: $postId,
-            userId: $userId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => LikeEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -1930,19 +1538,7 @@ class LikesRepository extends Repository<
             SQLException('No data found on table `tb_likes` to update!'));
       }
 
-      final [
-        String $id,
-        String $postId,
-        String $userId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = LikeEntity(
-        id: $id,
-        postId: $postId,
-        userId: $userId,
-        createdAt: $createdAt,
-      );
+      final entity = LikeEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -1968,23 +1564,7 @@ class LikesRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $postId,
-            String $userId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return LikeEntity(
-            id: $id,
-            postId: $postId,
-            userId: $userId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => LikeEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -2015,19 +1595,7 @@ class LikesRepository extends Repository<
             SQLException('No data found on table `tb_likes` to delete!'));
       }
 
-      final [
-        String $id,
-        String $postId,
-        String $userId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = LikeEntity(
-        id: $id,
-        postId: $postId,
-        userId: $userId,
-        createdAt: $createdAt,
-      );
+      final entity = LikeEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -2053,23 +1621,7 @@ class LikesRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $id,
-            String $postId,
-            String $userId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return LikeEntity(
-            id: $id,
-            postId: $postId,
-            userId: $userId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => LikeEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -2415,17 +1967,7 @@ class FollowersRepository extends Repository<
             SQLException('Fail to insert data on table `tb_followers`!'));
       }
 
-      final [
-        String $followerId,
-        String $followingId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = FollowerEntity(
-        followerId: $followerId,
-        followingId: $followingId,
-        createdAt: $createdAt,
-      );
+      final entity = FollowerEntity.fromRow(result.first);
 
       return Success(entity);
     } on Exception catch (e) {
@@ -2454,21 +1996,7 @@ class FollowersRepository extends Repository<
             SQLException('Fail to insert data on table `tb_followers`!'));
       }
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $followerId,
-            String $followingId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return FollowerEntity(
-            followerId: $followerId,
-            followingId: $followingId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => FollowerEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -2496,17 +2024,7 @@ class FollowersRepository extends Repository<
         return Error(SQLException('No data found on table `tb_followers`!'));
       }
 
-      final [
-        String $followerId,
-        String $followingId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = FollowerEntity(
-        followerId: $followerId,
-        followingId: $followingId,
-        createdAt: $createdAt,
-      );
+      final entity = FollowerEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -2532,21 +2050,7 @@ class FollowersRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $followerId,
-            String $followingId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return FollowerEntity(
-            followerId: $followerId,
-            followingId: $followingId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => FollowerEntity.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -2581,17 +2085,7 @@ class FollowersRepository extends Repository<
             SQLException('No data found on table `tb_followers` to update!'));
       }
 
-      final [
-        String $followerId,
-        String $followingId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = FollowerEntity(
-        followerId: $followerId,
-        followingId: $followingId,
-        createdAt: $createdAt,
-      );
+      final entity = FollowerEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -2617,21 +2111,7 @@ class FollowersRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $followerId,
-            String $followingId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return FollowerEntity(
-            followerId: $followerId,
-            followingId: $followingId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => FollowerEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -2662,17 +2142,7 @@ class FollowersRepository extends Repository<
             SQLException('No data found on table `tb_followers` to delete!'));
       }
 
-      final [
-        String $followerId,
-        String $followingId,
-        DateTime $createdAt,
-      ] = result.first as List;
-
-      final entity = FollowerEntity(
-        followerId: $followerId,
-        followingId: $followingId,
-        createdAt: $createdAt,
-      );
+      final entity = FollowerEntity.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -2698,21 +2168,7 @@ class FollowersRepository extends Repository<
       final result =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            String $followerId,
-            String $followingId,
-            DateTime $createdAt,
-          ] = row as List;
-
-          return FollowerEntity(
-            followerId: $followerId,
-            followingId: $followingId,
-            createdAt: $createdAt,
-          );
-        },
-      );
+      final entities = result.map((row) => FollowerEntity.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {

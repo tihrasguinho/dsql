@@ -189,13 +189,7 @@ String _repositoryBuilder(Table table) {
         return Error(SQLException('Fail to insert data on table `${table.name}`!'));
       }
 
-      final [
-        ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-      ] = result.first as List;
-
-      final entity = ${table.entity}(
-        ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-      );
+      final entity = ${table.entity}.fromRow(result.first);
 
       return Success(entity);
     } on Exception catch (e) {
@@ -221,17 +215,7 @@ String _repositoryBuilder(Table table) {
         return Error(SQLException('Fail to insert data on table `${table.name}`!'));
       }
 
-      final entities = result.map(
-        (row) {
-          final [
-            ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-          ] = row as List;
-
-          return ${table.entity}(
-            ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-          );
-        },
-      );
+      final entities = result.map((row) => ${table.entity}.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -257,13 +241,7 @@ String _repositoryBuilder(Table table) {
         return Error(SQLException('No data found on table `${table.name}`!'));
       }
 
-      final [
-        ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-      ] = result.first as List;
-
-      final entity = ${table.entity}(
-        ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-      );
+      final entity = ${table.entity}.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -287,17 +265,7 @@ String _repositoryBuilder(Table table) {
 
       final result = await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-          ] = row as List;
-
-          return ${table.entity}(
-            ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-          );
-        },
-      );
+      final entities = result.map((row) => ${table.entity}.fromRow(row));
 
       return Success(entities.toList());
     } on Exception catch (e) {
@@ -328,13 +296,7 @@ String _repositoryBuilder(Table table) {
         return Error(SQLException('No data found on table `${table.name}` to update!'));
       }
 
-      final [
-        ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-      ] = result.first as List;
-
-      final entity = ${table.entity}(
-        ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-      );
+      final entity = ${table.entity}.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -358,17 +320,7 @@ String _repositoryBuilder(Table table) {
 
       final result = await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-          ] = row as List;
-
-          return ${table.entity}(
-            ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-          );
-        },
-      );
+      final entities = result.map((row) => ${table.entity}.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {
@@ -396,13 +348,7 @@ String _repositoryBuilder(Table table) {
         return Error(SQLException('No data found on table `${table.name}` to delete!'));
       }
 
-      final [
-        ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-      ] = result.first as List;
-
-      final entity = ${table.entity}(
-        ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-      );
+      final entity = ${table.entity}.fromRow(result.first);
 
       return Success(entity);
     } on DSQLException catch (e) {
@@ -426,17 +372,7 @@ String _repositoryBuilder(Table table) {
 
       final result = await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map(
-        (row) {
-          final [
-            ${table.columns.map((c) => '${fieldType(c)}${isNullable(c) ? '?' : ''} \$${fieldName(c)},').join('\n')}
-          ] = row as List;
-
-          return ${table.entity}(
-            ${table.columns.map((c) => '${fieldName(c)}: \$${fieldName(c)},').join('\n')}
-          );
-        },
-      );
+      final entities = result.map((row) => ${table.entity}.fromRow(row));
 
       return Success(entities.toList());
     } on DSQLException catch (e) {

@@ -1,11 +1,12 @@
 name: dsql
-description: Dart SQL library for generating .dart files from .sql files
-version: 1.0.6
+description: Dart (PostgresSQL) SQL library for generating .dart files from .sql files and migrating the database based on the .sql files! Inspired by ORMs like Prisma (NodeJs) and SQLC (Golang).
+version: 1.0.7
 homepage: https://github.com/tihrasguinho/dsql
 topics:
   - postgres
   - orm
-  - prisma-like
+  - prisma
+  - sqlc
 
 executables: 
   dsql: dsql
