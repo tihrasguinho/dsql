@@ -18,11 +18,26 @@ String builder(List<Table> tables) {
 }
 
 String _entityBuilder(Table table) {
+  final relationshipsFields = [
+    ...table.hasMany.entries.map(
+        (e) => 'final Page<${e.value.entity}>? \$${e.key.nameNormalized};'),
+    ...table.hasOne.entries.map((e) =>
+        'final ${e.value.entity}? \$${constraintNameNormalizer(e.key.column)};'),
+  ];
+
+  final relationshipsParameters = [
+    ...table.hasMany.entries.map((e) => 'this.\$${e.key.nameNormalized},'),
+    ...table.hasOne.entries
+        .map((e) => 'this.\$${constraintNameNormalizer(e.key.column)},'),
+  ];
+
   return '''class ${table.entity} {
     ${table.columns.map((c) => 'final ${fieldType(c)}${isNullable(c) ? '?' : ''} ${fieldName(c)};').join('\n')}
+    ${relationshipsFields.join('\n')}
 
     const ${table.entity}({
       ${table.columns.map((c) => '${isNullable(c) ? '' : 'required '}this.${fieldName(c)},').join('\n')}
+      ${relationshipsParameters.join('\n')}
     });
 
     ${_toMapMethodBuilder(table)}

@@ -263,11 +263,13 @@ String _repositoryBuilder(Table table) {
         print('*' * 80);
       }
 
-      final result = await _db.execute(params.query, parameters: params.parameters);
+      final entitiesResult = await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map((row) => ${table.entity}.fromRow(row));
+      final entities = entitiesResult.map((row) => ${table.entity}.fromRow(row));
 
       return Success(entities.toList());
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
     } on Exception catch (e) {
       return Error(SQLException(e.toString()));
     }
@@ -275,7 +277,46 @@ String _repositoryBuilder(Table table) {
 
   @override
   AsyncResult<Page<${table.entity}>, DSQLException> findManyPaginated([FindMany${table.rawEntity}Params params = const FindMany${table.rawEntity}Params()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindMany${table.rawEntity}Params');
+        print('*' * 80);
+        print('QUERY: \${params.query}');
+        print('PARAMETERS: \${params.parameters}');
+        print('*' * 80);
+      }
+
+      final page = await _db.runTx<Page<${table.entity}>>((tx) async {
+        final entitiesResult = await tx.execute(params.query, parameters: params.parameters);
+
+        final countQuery = params.query.replaceFirst(RegExp(r' ORDER BY \\w+'), '')
+              .replaceFirst(RegExp(r'SELECT \\* FROM'), 'SELECT COUNT(*) FROM')
+              .replaceFirst(RegExp(r' LIMIT \\d+'), '')
+              .replaceFirst(RegExp(r' OFFSET \\d+'), '');
+
+        final countResult = await tx.execute(countQuery, parameters: params.parameters);
+
+        final count = countResult[0][0] as int;
+
+        return Page(
+          items: entitiesResult.map((row) => ${table.entity}.fromRow(row)).toList(),
+          page: params.page,
+          pageSize: params.pageSize,
+          count: count,
+          hasNext: params.page * params.pageSize < count,
+          hasPrevious: params.page > 1,
+        );
+      });
+
+      return Success(page);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -429,7 +470,7 @@ class InsertMany${table.rawEntity}Fields {
 String _findOneParamsBuider(Table table) {
   return '''class FindOne${table.rawEntity}Params extends FindOneParams {
   ${table.columns.map((c) => 'final Where? ${fieldName(c)};').join('\n')}
-
+  
   const FindOne${table.rawEntity}Params({
     ${table.columns.map((c) => 'this.${fieldName(c)},').join('\n')}
   });

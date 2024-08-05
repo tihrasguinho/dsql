@@ -30,11 +30,11 @@ class Database {
     }
   }
 
-  Future<Result> runTx(Future<Result> Function(TxSession tx) func) async {
+  Future<T> runTx<T>(Future<T> Function(TxSession tx) func) async {
     if (_pool != null) {
-      return _pool!.runTx(func);
+      return _pool!.runTx<T>(func);
     } else if (_conn != null) {
-      return _conn!.runTx(func);
+      return _conn!.runTx<T>(func);
     } else {
       throw DSQLException('Pool or Connection is required!');
     }

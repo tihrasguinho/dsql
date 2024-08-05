@@ -14,13 +14,11 @@ CREATE TABLE IF NOT EXISTS tb_users (
 -- entity: PostEntity
 CREATE TABLE IF NOT EXISTS tb_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
-  post_id UUID,
+  post_id UUID REFERENCES tb_posts (id) ON DELETE CASCADE ON UPDATE CASCADE,
   content VARCHAR(255) NOT NULL,
-  user_id UUID NOT NULL,
+  user_id UUID NOT NULL REFERENCES tb_users (id) ON DELETE CASCADE ON UPDATE CASCADE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW (),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW (),
-  CONSTRAINT fkpost_replies FOREIGN KEY (post_id) REFERENCES tb_posts (id) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fkuser_posts FOREIGN KEY (user_id) REFERENCES tb_users (id) ON DELETE CASCADE ON UPDATE CASCADE
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW ()
 );
 
 -- entity: LikeEntity

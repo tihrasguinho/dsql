@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dsql/dsql.dart';
 import 'package:example/generated/dsql.dart';
 
 void main() async {
@@ -8,18 +9,22 @@ void main() async {
     verbose: true,
   );
 
-  final users = await dsql.users.findMany();
-
-  return users.when(
-    (success) {
-      print(success);
-      exit(0);
-    },
-    (error) {
-      print(error.message);
-      exit(0);
-    },
+  final result = await dsql.users.findManyPaginated(
+    FindManyUserParams(
+      name: Where.startsWith('a'),
+      page: 2,
+      pageSize: 10,
+    ),
   );
+
+  if (result.isError) {
+    print(result.getErrorOrThrow().message);
+  }
+
+  print(result.getSuccessOrThrow().toMap((items) => []));
+
+  exit(0);
+
   //  Because we are using verbose = true the current query and parameters will be printed in the console
   //  ********************************************************************************
   //  FindManyUserParams

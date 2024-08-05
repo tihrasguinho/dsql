@@ -13,6 +13,10 @@ class UserEntity {
   final String? bio;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Page<PostEntity>? $posts;
+  final Page<LikeEntity>? $likes;
+  final Page<FollowerEntity>? $followers;
+  final Page<FollowerEntity>? $following;
 
   const UserEntity({
     required this.id,
@@ -24,6 +28,10 @@ class UserEntity {
     this.bio,
     required this.createdAt,
     required this.updatedAt,
+    this.$posts,
+    this.$likes,
+    this.$followers,
+    this.$following,
   });
 
   Map<String, dynamic> toMap() {
@@ -128,6 +136,10 @@ class PostEntity {
   final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Page<PostEntity>? $posts;
+  final Page<LikeEntity>? $likes;
+  final PostEntity? $post;
+  final UserEntity? $user;
 
   const PostEntity({
     required this.id,
@@ -136,6 +148,10 @@ class PostEntity {
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
+    this.$posts,
+    this.$likes,
+    this.$post,
+    this.$user,
   });
 
   Map<String, dynamic> toMap() {
@@ -220,12 +236,16 @@ class LikeEntity {
   final String postId;
   final String userId;
   final DateTime createdAt;
+  final PostEntity? $post;
+  final UserEntity? $user;
 
   const LikeEntity({
     required this.id,
     required this.postId,
     required this.userId,
     required this.createdAt,
+    this.$post,
+    this.$user,
   });
 
   Map<String, dynamic> toMap() {
@@ -294,11 +314,15 @@ class FollowerEntity {
   final String followerId;
   final String followingId;
   final DateTime createdAt;
+  final UserEntity? $follower;
+  final UserEntity? $following;
 
   const FollowerEntity({
     required this.followerId,
     required this.followingId,
     required this.createdAt,
+    this.$follower,
+    this.$following,
   });
 
   Map<String, dynamic> toMap() {

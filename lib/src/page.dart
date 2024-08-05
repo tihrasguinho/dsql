@@ -4,6 +4,7 @@ class Page<T extends Object> {
   final List<T> items;
   final int page;
   final int pageSize;
+  final int count;
   final bool hasNext;
   final bool hasPrevious;
 
@@ -11,6 +12,7 @@ class Page<T extends Object> {
     required this.items,
     this.page = 1,
     this.pageSize = 10,
+    this.count = 0,
     this.hasNext = false,
     this.hasPrevious = false,
   });
@@ -19,7 +21,7 @@ class Page<T extends Object> {
 
   @override
   String toString() {
-    return 'Page(items: $items, total: $total, page: $page, pageSize: $pageSize, hasNext: $hasNext, hasPrevious: $hasPrevious)';
+    return 'Page(items: $items, total: $total, page: $page, pageSize: $pageSize, count: $count, hasNext: $hasNext, hasPrevious: $hasPrevious)';
   }
 
   Map<String, dynamic> toMap(
@@ -29,6 +31,7 @@ class Page<T extends Object> {
       'total': total,
       'page': page,
       'page_size': pageSize,
+      'count': count,
       'has_next': hasNext,
       'has_previous': hasPrevious,
     };
@@ -45,6 +48,7 @@ class Page<T extends Object> {
       items: mapper(map['items'] as List<Map<String, dynamic>>),
       page: map['page'] as int,
       pageSize: map['page_size'] as int,
+      count: map['count'] as int,
       hasNext: map['has_next'] as bool,
       hasPrevious: map['has_previous'] as bool,
     );

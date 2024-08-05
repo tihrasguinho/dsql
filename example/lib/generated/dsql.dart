@@ -242,12 +242,14 @@ class UsersRepository extends Repository<
         print('*' * 80);
       }
 
-      final result =
+      final entitiesResult =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map((row) => UserEntity.fromRow(row));
+      final entities = entitiesResult.map((row) => UserEntity.fromRow(row));
 
       return Success(entities.toList());
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
     } on Exception catch (e) {
       return Error(SQLException(e.toString()));
     }
@@ -256,7 +258,49 @@ class UsersRepository extends Repository<
   @override
   AsyncResult<Page<UserEntity>, DSQLException> findManyPaginated(
       [FindManyUserParams params = const FindManyUserParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyUserParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final page = await _db.runTx<Page<UserEntity>>((tx) async {
+        final entitiesResult =
+            await tx.execute(params.query, parameters: params.parameters);
+
+        final countQuery = params.query
+            .replaceFirst(RegExp(r' ORDER BY \w+'), '')
+            .replaceFirst(RegExp(r'SELECT \* FROM'), 'SELECT COUNT(*) FROM')
+            .replaceFirst(RegExp(r' LIMIT \d+'), '')
+            .replaceFirst(RegExp(r' OFFSET \d+'), '');
+
+        final countResult =
+            await tx.execute(countQuery, parameters: params.parameters);
+
+        final count = countResult[0][0] as int;
+
+        return Page(
+          items: entitiesResult.map((row) => UserEntity.fromRow(row)).toList(),
+          page: params.page,
+          pageSize: params.pageSize,
+          count: count,
+          hasNext: params.page * params.pageSize < count,
+          hasPrevious: params.page > 1,
+        );
+      });
+
+      return Success(page);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -915,12 +959,14 @@ class PostsRepository extends Repository<
         print('*' * 80);
       }
 
-      final result =
+      final entitiesResult =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map((row) => PostEntity.fromRow(row));
+      final entities = entitiesResult.map((row) => PostEntity.fromRow(row));
 
       return Success(entities.toList());
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
     } on Exception catch (e) {
       return Error(SQLException(e.toString()));
     }
@@ -929,7 +975,49 @@ class PostsRepository extends Repository<
   @override
   AsyncResult<Page<PostEntity>, DSQLException> findManyPaginated(
       [FindManyPostParams params = const FindManyPostParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyPostParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final page = await _db.runTx<Page<PostEntity>>((tx) async {
+        final entitiesResult =
+            await tx.execute(params.query, parameters: params.parameters);
+
+        final countQuery = params.query
+            .replaceFirst(RegExp(r' ORDER BY \w+'), '')
+            .replaceFirst(RegExp(r'SELECT \* FROM'), 'SELECT COUNT(*) FROM')
+            .replaceFirst(RegExp(r' LIMIT \d+'), '')
+            .replaceFirst(RegExp(r' OFFSET \d+'), '');
+
+        final countResult =
+            await tx.execute(countQuery, parameters: params.parameters);
+
+        final count = countResult[0][0] as int;
+
+        return Page(
+          items: entitiesResult.map((row) => PostEntity.fromRow(row)).toList(),
+          page: params.page,
+          pageSize: params.pageSize,
+          count: count,
+          hasNext: params.page * params.pageSize < count,
+          hasPrevious: params.page > 1,
+        );
+      });
+
+      return Success(page);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -1500,12 +1588,14 @@ class LikesRepository extends Repository<
         print('*' * 80);
       }
 
-      final result =
+      final entitiesResult =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map((row) => LikeEntity.fromRow(row));
+      final entities = entitiesResult.map((row) => LikeEntity.fromRow(row));
 
       return Success(entities.toList());
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
     } on Exception catch (e) {
       return Error(SQLException(e.toString()));
     }
@@ -1514,7 +1604,49 @@ class LikesRepository extends Repository<
   @override
   AsyncResult<Page<LikeEntity>, DSQLException> findManyPaginated(
       [FindManyLikeParams params = const FindManyLikeParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyLikeParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final page = await _db.runTx<Page<LikeEntity>>((tx) async {
+        final entitiesResult =
+            await tx.execute(params.query, parameters: params.parameters);
+
+        final countQuery = params.query
+            .replaceFirst(RegExp(r' ORDER BY \w+'), '')
+            .replaceFirst(RegExp(r'SELECT \* FROM'), 'SELECT COUNT(*) FROM')
+            .replaceFirst(RegExp(r' LIMIT \d+'), '')
+            .replaceFirst(RegExp(r' OFFSET \d+'), '');
+
+        final countResult =
+            await tx.execute(countQuery, parameters: params.parameters);
+
+        final count = countResult[0][0] as int;
+
+        return Page(
+          items: entitiesResult.map((row) => LikeEntity.fromRow(row)).toList(),
+          page: params.page,
+          pageSize: params.pageSize,
+          count: count,
+          hasNext: params.page * params.pageSize < count,
+          hasPrevious: params.page > 1,
+        );
+      });
+
+      return Success(page);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
@@ -2047,12 +2179,14 @@ class FollowersRepository extends Repository<
         print('*' * 80);
       }
 
-      final result =
+      final entitiesResult =
           await _db.execute(params.query, parameters: params.parameters);
 
-      final entities = result.map((row) => FollowerEntity.fromRow(row));
+      final entities = entitiesResult.map((row) => FollowerEntity.fromRow(row));
 
       return Success(entities.toList());
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
     } on Exception catch (e) {
       return Error(SQLException(e.toString()));
     }
@@ -2061,7 +2195,50 @@ class FollowersRepository extends Repository<
   @override
   AsyncResult<Page<FollowerEntity>, DSQLException> findManyPaginated(
       [FindManyFollowerParams params = const FindManyFollowerParams()]) async {
-    throw UnimplementedError();
+    try {
+      if (verbose) {
+        print('*' * 80);
+        print('FindManyFollowerParams');
+        print('*' * 80);
+        print('QUERY: ${params.query}');
+        print('PARAMETERS: ${params.parameters}');
+        print('*' * 80);
+      }
+
+      final page = await _db.runTx<Page<FollowerEntity>>((tx) async {
+        final entitiesResult =
+            await tx.execute(params.query, parameters: params.parameters);
+
+        final countQuery = params.query
+            .replaceFirst(RegExp(r' ORDER BY \w+'), '')
+            .replaceFirst(RegExp(r'SELECT \* FROM'), 'SELECT COUNT(*) FROM')
+            .replaceFirst(RegExp(r' LIMIT \d+'), '')
+            .replaceFirst(RegExp(r' OFFSET \d+'), '');
+
+        final countResult =
+            await tx.execute(countQuery, parameters: params.parameters);
+
+        final count = countResult[0][0] as int;
+
+        return Page(
+          items:
+              entitiesResult.map((row) => FollowerEntity.fromRow(row)).toList(),
+          page: params.page,
+          pageSize: params.pageSize,
+          count: count,
+          hasNext: params.page * params.pageSize < count,
+          hasPrevious: params.page > 1,
+        );
+      });
+
+      return Success(page);
+    } on DSQLException catch (e) {
+      return Error(e);
+    } on PgException catch (e) {
+      return Error(SQLException(e.message));
+    } on Exception catch (e) {
+      return Error(SQLException(e.toString()));
+    }
   }
 
   @override
